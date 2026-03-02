@@ -11,6 +11,10 @@ tavily-python>=0.3.0
 # Configuration / environment
 python-dotenv>=1.0.0
 
+# Dashboard
+streamlit>=1.35.0
+plotly>=5.22.0
+
 # Utilities
 pydantic>=2.0.0
 colorama>=0.4.6
