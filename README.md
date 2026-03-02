@@ -1,8 +1,46 @@
-# RTAI — AI-Driven Red Team Framework
+# RTAI — Autonomous Red Team AI
 
-An autonomous penetration-testing framework powered by [LangGraph](https://github.com/langchain-ai/langgraph) and OpenAI. RTAI orchestrates five specialised AI agents through a strictly linear pipeline — from raw network reconnaissance to a publication-ready Markdown report with concrete, copy-paste remediation steps — and a Streamlit CISO dashboard for visualising findings across engagements.
+> **From zero to full CVE-grounded pentest report — autonomously.**
+
+RTAI is a portfolio-grade autonomous penetration-testing framework that chains five specialised AI agents through a [LangGraph](https://github.com/langchain-ai/langgraph) `StateGraph`. Point it at an authorised target, and it delivers a publication-ready Markdown report with structured CVE findings, CVSS-grounded risk ratings, and copy-paste remediation steps — no human in the loop.
+
+A companion Streamlit CISO dashboard visualises findings across engagements in real time.
 
 > **Legal notice:** This tool is intended for use against systems you own or have explicit written authorisation to test. Unauthorised use is illegal.
+
+---
+
+## Quick Start
+
+```bash
+# 1 — Clone and install
+git clone git@github.com:CyberSentinel-sys/RTAI.git && cd RTAI
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2 — Configure
+cp .env.example .env          # add OPENAI_API_KEY + TAVILY_API_KEY
+
+# 3 — Run
+python main.py --target <TARGET> --engagement "My_Lab"
+```
+
+The report lands in `reports/<engagement>_<date>_report.md`.
+See `samples/sample_report.md` for an example of the full output format.
+
+---
+
+## Why RTAI?
+
+| Capability | How it works |
+|---|---|
+| **Fully autonomous pipeline** | LangGraph `StateGraph` — no human prompts between stages |
+| **CVE-grounded findings** | Tavily live search → LLM extracts CVEs, CVSS, PoC links |
+| **CVSS-derived risk levels** | `risk_level` set from OSINT CVSS scores, never hallucinated |
+| **Structured remediation** | Copy-paste shell commands + verification step per finding |
+| **Deterministic reporting** | Tables/findings built in Python from typed state; LLM writes prose only |
+| **CISO dashboard** | Streamlit + Plotly — grouped bar chart, donut, metric cards, port chips |
+| **Recruiter demo** | `python generate_pptx.py` → 5-slide dark-themed deck in seconds |
 
 ---
 
@@ -56,6 +94,8 @@ START
                    http://localhost:8501
 ```
 
+All agents communicate through a single `RTAIState` Pydantic model — findings accumulate across nodes using LangGraph's `operator.add` reducer.
+
 ---
 
 ## CISO Dashboard
@@ -75,7 +115,23 @@ Open `http://localhost:8501` in your browser.
 | **Port chips** | Each open port as a styled badge (`80/tcp`, `445/tcp`, …) |
 | **Report viewer** | Full Markdown report rendered in a scrollable dark panel |
 
-Dark-themed throughout (`#0E1117` background, `#FF4B4B` accent, monospace font). Theme configured in `.streamlit/config.toml`.
+Dark-themed throughout (`#0E1117` background, `#FF4B4B` accent, monospace font).
+
+---
+
+## LinkedIn / Portfolio Presentation
+
+```bash
+python generate_pptx.py
+```
+
+Generates `RTAI_LinkedIn_Presentation.pptx` — a 5-slide dark-themed deck covering the pipeline, real findings, automated remediation, and roadmap. Requires `python-pptx` (already in `requirements.txt`).
+
+---
+
+## Sample Output
+
+`samples/sample_report.md` contains a complete mock report generated against a fictional target (`192.0.2.10`) so you can review the full output format without any real engagement data.
 
 ---
 
@@ -113,11 +169,14 @@ RTAI/
 │   ├── tool_base.py           # Abstract BaseTool interface
 │   ├── tool_registry.py       # Singleton tool registry
 │   └── nmap_wrapper.py        # python-nmap → structured dict output
+├── samples/
+│   └── sample_report.md       # Example output — fictional target, no real data
 ├── logs/
 ├── reports/                   # Auto-generated engagement reports (gitignored)
 ├── .streamlit/
 │   └── config.toml            # Dark theme configuration
 ├── dashboard.py               # Streamlit CISO dashboard
+├── generate_pptx.py           # Generates LinkedIn presentation deck
 ├── main.py                    # CLI entry point
 ├── requirements.txt
 └── .env.example

@@ -9,6 +9,9 @@
 __pycache__/
 *.py[cod]
 
-# Reports & logs
+# Reports & logs (real engagement data — keep private)
 reports/
 logs/*.log
+
+# Generated files
+*.pptx
