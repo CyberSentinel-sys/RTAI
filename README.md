@@ -1,6 +1,6 @@
 # RTAI — AI-Driven Red Team Framework
 
-An autonomous penetration-testing framework powered by [LangGraph](https://github.com/langchain-ai/langgraph) and OpenAI. RTAI orchestrates four specialised AI agents through a strictly linear pipeline — from raw network reconnaissance to a publication-ready Markdown report.
+An autonomous penetration-testing framework powered by [LangGraph](https://github.com/langchain-ai/langgraph) and OpenAI. RTAI orchestrates five specialised AI agents through a strictly linear pipeline — from raw network reconnaissance to a publication-ready Markdown report with concrete, copy-paste remediation steps.
 
 > **Legal notice:** This tool is intended for use against systems you own or have explicit written authorisation to test. Unauthorised use is illegal.
 
@@ -12,46 +12,55 @@ An autonomous penetration-testing framework powered by [LangGraph](https://githu
 START
   │
   ▼
-┌─────────────┐
-│  ReconAgent │  Nmap scan → LLM interprets open ports, services, OS
-└──────┬──────┘
-       │
-  ▼
-┌─────────────┐
-│  OsintAgent │  Tavily search per service → LLM extracts top 3
-│             │  high-risk findings (CVEs, PoCs, default credentials)
-└──────┬──────┘
-       │
-  ▼
-┌──────────────┐
-│ ExploitAgent │  Ranks attack vectors by likelihood & impact;
-│              │  risk_level derived from OSINT CVSS scores
-└──────┬───────┘
-       │
-  ▼
-┌──────────────┐
-│ ReportAgent  │  Structured Markdown report (tables built from
-│              │  state data + LLM-written narrative sections)
-└──────┬───────┘
-       │
-      END  →  reports/<engagement>_<date>_report.md
+┌──────────────────┐
+│   ReconAgent     │  Nmap scan (service/version/OS detection)
+│                  │  LLM interprets open ports and attack surface
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│   OsintAgent     │  Tavily search: "[Service] [Version] known vulnerabilities exploits"
+│                  │  LLM extracts top 3 high-risk findings (CVEs, PoCs, default creds)
+│                  │  → stored as structured top_3_risks in state.findings
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│   ExploitAgent   │  Ranks attack vectors by likelihood & impact
+│                  │  risk_level derived from OSINT CVSS scores (not inferred)
+│                  │  CVE identifiers cited directly from OSINT findings
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│RemediationAgent  │  One structured remediation per attack vector
+│                  │  Outputs: steps[], copy-paste code_snippet, verification command
+│                  │  Sorted Critical → High → Medium → Low
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│   ReportAgent    │  Structured Markdown report
+│                  │  Tables/findings built from state data (deterministic)
+│                  │  Executive Summary & Conclusion written by LLM
+└────────┬─────────┘
+         │
+        END  →  reports/<engagement>_<date>_report.md
 ```
 
 ---
 
 ## Report Output
 
-The final report contains:
-
-| Section | Source |
+| Section | Built by |
 |---|---|
-| Header (engagement, target, date, classification) | Python / state data |
+| Header — engagement, target, date, classification | Python / state data |
 | Executive Summary | LLM narrative |
 | Scope & Methodology | Python / state data |
-| Reconnaissance — OS detection + ports table | Python / Nmap results |
-| OSINT Intelligence — top-3 CVE/PoC/DefaultCreds table | Python / OSINT findings |
+| Reconnaissance — OS detection + open ports table | Python / Nmap results |
+| OSINT Intelligence — top-3 CVE/PoC/DefaultCreds table + analyst summary | Python / OSINT findings |
 | Exploitation Analysis — attack vectors with `risk_level` | Python / exploit findings |
-| Recommendations (Critical-first, tied to findings) | LLM narrative |
+| Remediation Plan — summary table + per-finding steps, code block, verification | Python / remediation findings |
 | Conclusion | LLM narrative |
 
 ---
@@ -61,22 +70,23 @@ The final report contains:
 ```
 RTAI/
 ├── agents/
-│   ├── base_agent.py       # Abstract base; wraps ChatOpenAI
-│   ├── recon_agent.py      # Nmap scan + LLM attack-surface analysis
-│   ├── osint_agent.py      # Tavily search + top-3 high-risk synthesis
-│   ├── exploit_agent.py    # Attack vector ranking (OSINT-grounded)
-│   └── report_agent.py     # Structured Markdown report generation
+│   ├── base_agent.py          # Abstract base; wraps ChatOpenAI
+│   ├── recon_agent.py         # Nmap scan + LLM attack-surface analysis
+│   ├── osint_agent.py         # Tavily search + top-3 high-risk synthesis
+│   ├── exploit_agent.py       # Attack vector ranking (OSINT-grounded)
+│   ├── remediation_agent.py   # Per-vector steps, code snippets, verification
+│   └── report_agent.py        # Structured Markdown report generation
 ├── core/
-│   ├── config.py           # dotenv loader + startup validation
-│   ├── state.py            # Pydantic RTAIState (shared across nodes)
-│   └── orchestrator.py     # LangGraph StateGraph (linear pipeline)
+│   ├── config.py              # dotenv loader + startup validation
+│   ├── state.py               # Pydantic RTAIState (shared across all nodes)
+│   └── orchestrator.py        # LangGraph StateGraph (5-node linear pipeline)
 ├── tools/
-│   ├── tool_base.py        # Abstract BaseTool interface
-│   ├── tool_registry.py    # Singleton tool registry
-│   └── nmap_wrapper.py     # python-nmap → structured dict output
+│   ├── tool_base.py           # Abstract BaseTool interface
+│   ├── tool_registry.py       # Singleton tool registry
+│   └── nmap_wrapper.py        # python-nmap → structured dict output
 ├── logs/
-├── reports/                # Auto-generated engagement reports
-├── main.py                 # CLI entry point
+├── reports/                   # Auto-generated engagement reports
+├── main.py                    # CLI entry point
 ├── requirements.txt
 └── .env.example
 ```
@@ -163,6 +173,7 @@ All agents communicate through `RTAIState` (a Pydantic model). Key fields:
 | `tool_outputs["nmap"]` | `dict` | ReconAgent | OsintAgent, ExploitAgent |
 | `findings` | `list[dict]` (append) | All agents | All agents, ReportAgent |
 | `osint_results` | `list[dict]` (append) | OsintAgent | ExploitAgent, ReportAgent |
+| `remediations` | `list[dict]` (append) | RemediationAgent | ReportAgent |
 | `report` | `str` | ReportAgent | `main.py` |
 
 ---
