@@ -6,6 +6,7 @@ langgraph>=0.1.0
 
 # Security tooling
 python-nmap>=0.7.1
+tavily-python>=0.3.0
 
 # Configuration / environment
 python-dotenv>=1.0.0

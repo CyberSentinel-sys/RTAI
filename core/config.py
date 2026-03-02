@@ -17,6 +17,9 @@ class Config:
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o")
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 
+    # OSINT
+    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+
     # Engagement
     TARGET_SCOPE: str = os.getenv("TARGET_SCOPE", "")
     ENGAGEMENT_NAME: str = os.getenv("ENGAGEMENT_NAME", "RTAI_Engagement")
@@ -29,6 +32,8 @@ class Config:
     def validate(cls) -> None:
         if not cls.OPENAI_API_KEY:
             raise EnvironmentError("OPENAI_API_KEY is not set in .env")
+        if not cls.TAVILY_API_KEY:
+            raise EnvironmentError("TAVILY_API_KEY is not set in .env")
         if not cls.TARGET_SCOPE:
             raise EnvironmentError("TARGET_SCOPE is not set in .env")
         cls.LOG_DIR.mkdir(exist_ok=True)

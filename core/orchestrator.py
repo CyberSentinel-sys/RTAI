@@ -1,7 +1,11 @@
 """
 core/orchestrator.py
-LangGraph-based orchestrator that routes between ReconAgent,
+LangGraph-based orchestrator that routes between ReconAgent, OsintAgent,
 ExploitAgent, and ReportAgent based on engagement state.
+
+Pipeline:
+    recon ──► osint ──► exploit ──► report
+      └─────────────────────────────────┘  (fallback if no hosts found)
 """
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ from langgraph.graph import StateGraph, END
 from core.config import Config
 from core.state import RTAIState
 from agents.recon_agent import ReconAgent
+from agents.osint_agent import OsintAgent
 from agents.exploit_agent import ExploitAgent
 from agents.report_agent import ReportAgent
 
@@ -19,18 +24,19 @@ from agents.report_agent import ReportAgent
 # ---------------------------------------------------------------------------
 
 def recon_node(state: RTAIState) -> dict:
-    agent = ReconAgent()
-    return agent.run(state)
+    return ReconAgent().run(state)
+
+
+def osint_node(state: RTAIState) -> dict:
+    return OsintAgent().run(state)
 
 
 def exploit_node(state: RTAIState) -> dict:
-    agent = ExploitAgent()
-    return agent.run(state)
+    return ExploitAgent().run(state)
 
 
 def report_node(state: RTAIState) -> dict:
-    agent = ReportAgent()
-    return agent.run(state)
+    return ReportAgent().run(state)
 
 
 # ---------------------------------------------------------------------------
@@ -38,17 +44,11 @@ def report_node(state: RTAIState) -> dict:
 # ---------------------------------------------------------------------------
 
 def route_after_recon(state: RTAIState) -> str:
-    """Decide next node after reconnaissance completes."""
+    """Route to OSINT if hosts were discovered, otherwise skip to report."""
     if state.finished:
         return "report"
-    # If recon found open ports / services worth investigating, go to exploit
-    if state.tool_outputs.get("nmap"):
-        return "exploit"
-    return "report"
-
-
-def route_after_exploit(state: RTAIState) -> str:
-    """Decide next node after exploitation phase."""
+    if state.tool_outputs.get("nmap", {}).get("hosts"):
+        return "osint"
     return "report"
 
 
@@ -65,6 +65,7 @@ class Orchestrator:
         builder = StateGraph(RTAIState)
 
         builder.add_node("recon", recon_node)
+        builder.add_node("osint", osint_node)
         builder.add_node("exploit", exploit_node)
         builder.add_node("report", report_node)
 
@@ -73,13 +74,12 @@ class Orchestrator:
         builder.add_conditional_edges(
             "recon",
             route_after_recon,
-            {"exploit": "exploit", "report": "report"},
+            {"osint": "osint", "report": "report"},
         )
-        builder.add_conditional_edges(
-            "exploit",
-            route_after_exploit,
-            {"report": "report"},
-        )
+        # After OSINT always proceed to exploitation analysis
+        builder.add_edge("osint", "exploit")
+        # After exploitation analysis always proceed to report
+        builder.add_edge("exploit", "report")
         builder.add_edge("report", END)
 
         return builder.compile()

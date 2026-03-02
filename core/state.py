@@ -19,6 +19,9 @@ class RTAIState(BaseModel):
     # Raw tool outputs keyed by tool name
     tool_outputs: dict[str, Any] = Field(default_factory=dict)
 
+    # OSINT results: one entry per service queried, accumulates across nodes
+    osint_results: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
+
     # Current reasoning step produced by the active agent
     current_step: str = ""
 
