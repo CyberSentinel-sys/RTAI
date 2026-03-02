@@ -3,7 +3,7 @@ core/orchestrator.py
 LangGraph-based orchestrator.
 
 Pipeline (strictly linear):
-    START ──► recon ──► osint ──► exploit ──► report ──► END
+    START ──► recon ──► osint ──► exploit ──► remediation ──► report ──► END
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from core.state import RTAIState
 from agents.recon_agent import ReconAgent
 from agents.osint_agent import OsintAgent
 from agents.exploit_agent import ExploitAgent
+from agents.remediation_agent import RemediationAgent
 from agents.report_agent import ReportAgent
 
 
@@ -33,6 +34,10 @@ def exploit_node(state: RTAIState) -> dict:
     return ExploitAgent().run(state)
 
 
+def remediation_node(state: RTAIState) -> dict:
+    return RemediationAgent().run(state)
+
+
 def report_node(state: RTAIState) -> dict:
     return ReportAgent().run(state)
 
@@ -49,18 +54,20 @@ class Orchestrator:
     def _build_graph(self) -> StateGraph:
         builder = StateGraph(RTAIState)
 
-        builder.add_node("recon", recon_node)
-        builder.add_node("osint", osint_node)
-        builder.add_node("exploit", exploit_node)
-        builder.add_node("report", report_node)
+        builder.add_node("recon",        recon_node)
+        builder.add_node("osint",        osint_node)
+        builder.add_node("exploit",      exploit_node)
+        builder.add_node("remediation",  remediation_node)
+        builder.add_node("report",       report_node)
 
         builder.set_entry_point("recon")
 
-        # Strictly linear — every engagement passes through all four stages
-        builder.add_edge("recon", "osint")
-        builder.add_edge("osint", "exploit")
-        builder.add_edge("exploit", "report")
-        builder.add_edge("report", END)
+        # Strictly linear — every engagement passes through all five stages
+        builder.add_edge("recon",       "osint")
+        builder.add_edge("osint",       "exploit")
+        builder.add_edge("exploit",     "remediation")
+        builder.add_edge("remediation", "report")
+        builder.add_edge("report",      END)
 
         return builder.compile()
 

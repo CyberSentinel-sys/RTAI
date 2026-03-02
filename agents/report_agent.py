@@ -36,12 +36,14 @@ class ReportAgent(BaseAgent):
 
     def run(self, state: RTAIState) -> dict[str, Any]:
         # ── Structured sections (Python-built, deterministic) ──────────────
-        recon_section   = self._build_recon_section(state)
-        osint_section   = self._build_osint_section(state)
-        exploit_section = self._build_exploit_section(state)
+        recon_section        = self._build_recon_section(state)
+        osint_section        = self._build_osint_section(state)
+        exploit_section      = self._build_exploit_section(state)
+        remediation_section  = self._build_remediation_section(state)
 
         # ── Narrative sections (LLM-generated) ────────────────────────────
-        narrative = self._generate_narrative(state, osint_section, exploit_section)
+        narrative = self._generate_narrative(state, osint_section, exploit_section,
+                                             remediation_section)
 
         # ── Assemble full report ───────────────────────────────────────────
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -52,7 +54,7 @@ class ReportAgent(BaseAgent):
             recon_section,
             osint_section,
             exploit_section,
-            narrative["recommendations"],
+            remediation_section,
             narrative["conclusion"],
         ])
 
@@ -88,7 +90,8 @@ class ReportAgent(BaseAgent):
             f"- **Target scope:** `{state.target}`\n"
             f"- **Assessment date:** {date_str}\n"
             "- **Methodology:** Automated pipeline — Reconnaissance (Nmap) → "
-            "OSINT intelligence gathering (Tavily) → Exploitation analysis → Report\n"
+            "OSINT intelligence gathering (Tavily) → Exploitation analysis → "
+            "Remediation planning → Report\n"
             "- **Tools:** python-nmap, Tavily Search API, OpenAI LLM\n"
         )
 
@@ -187,6 +190,56 @@ class ReportAgent(BaseAgent):
         ]
         return "\n".join(lines)
 
+    def _build_remediation_section(self, state: RTAIState) -> str:
+        remediation_finding = next(
+            (f for f in state.findings if f.get("phase") == "remediation"), None
+        )
+        if not remediation_finding:
+            return "## Remediation Plan\n\n_No remediation data available._"
+
+        remediations: list[dict[str, Any]] = remediation_finding.get("remediations", [])
+        if not remediations:
+            return "## Remediation Plan\n\n_No attack vectors required remediation._"
+
+        lines = ["## Remediation Plan\n"]
+
+        # Summary table — one row per finding, sorted Critical-first
+        lines.append("| # | Title | Risk | Service | CVE |")
+        lines.append("|---|---|---|---|---|")
+        for r in remediations:
+            lines.append(
+                f"| {r.get('id')} | {r.get('title')} | **{r.get('risk_level')}** | "
+                f"{r.get('service')} | `{r.get('cve')}` |"
+            )
+        lines.append("")
+
+        # Detailed subsection per remediation
+        for r in remediations:
+            lines.append(f"### {r.get('id')}. {r.get('title')}\n")
+            lines.append(f"**Risk:** {r.get('risk_level')} &nbsp;|&nbsp; "
+                         f"**Service:** {r.get('service')} &nbsp;|&nbsp; "
+                         f"**CVE:** `{r.get('cve')}`\n")
+
+            steps = r.get("steps", [])
+            if steps:
+                lines.append("**Steps:**")
+                for i, step in enumerate(steps, 1):
+                    lines.append(f"{i}. {step}")
+                lines.append("")
+
+            snippet = r.get("code_snippet")
+            if snippet:
+                lines.append("**Commands / Config:**")
+                lines.append("```bash")
+                lines.append(snippet)
+                lines.append("```\n")
+
+            verification = r.get("verification")
+            if verification and verification != "N/A":
+                lines.append(f"**Verification:** `{verification}`\n")
+
+        return "\n".join(lines)
+
     # =========================================================================
     # LLM narrative generator
     # =========================================================================
@@ -196,18 +249,25 @@ class ReportAgent(BaseAgent):
         state: RTAIState,
         osint_section: str,
         exploit_section: str,
+        remediation_section: str,
     ) -> dict[str, str]:
         """
-        Ask the LLM to write three narrative sections.
-        Returns a dict with keys: executive_summary, recommendations, conclusion.
+        Ask the LLM to write two narrative sections.
+        Returns a dict with keys: executive_summary, conclusion.
+        (Recommendations are now covered by the structured Remediation Plan section.)
         """
-        osint_finding  = next((f for f in state.findings if f.get("phase") == "osint"), {})
+        import json as _json
+        osint_finding   = next((f for f in state.findings if f.get("phase") == "osint"), {})
         exploit_finding = next(
             (f for f in state.findings if f.get("phase") == "exploit_analysis"), {}
+        )
+        remediation_finding = next(
+            (f for f in state.findings if f.get("phase") == "remediation"), {}
         )
 
         top_3_risks    = osint_finding.get("top_3_risks", [])
         attack_vectors = exploit_finding.get("attack_vectors", "None")
+        remediations   = remediation_finding.get("remediations", [])
 
         messages = [
             SystemMessage(content=self._system_prompt()),
@@ -216,38 +276,37 @@ class ReportAgent(BaseAgent):
                     f"Engagement: {state.engagement_name}\n"
                     f"Target: {state.target}\n\n"
                     f"Top 3 OSINT risks:\n{self._fmt(top_3_risks)}\n\n"
-                    f"Attack vectors from exploitation analysis:\n{attack_vectors}\n\n"
-                    "Write three sections of a penetration-testing report.\n"
+                    f"Attack vectors:\n{attack_vectors}\n\n"
+                    f"Remediation plan summary ({len(remediations)} items):\n"
+                    f"{self._fmt([{'id': r.get('id'), 'title': r.get('title'), 'risk_level': r.get('risk_level')} for r in remediations])}\n\n"
+                    "Write two sections of a penetration-testing report.\n"
                     "Return ONLY valid JSON (no markdown fences) in this shape:\n"
                     "{\n"
                     '  "executive_summary": "## Executive Summary\\n\\n<content>",\n'
-                    '  "recommendations": "## Recommendations\\n\\n<content>",\n'
                     '  "conclusion": "## Conclusion\\n\\n<content>"\n'
                     "}\n\n"
                     "Guidelines:\n"
                     "- Executive Summary: 3-5 sentences for a non-technical audience; "
-                    "  mention the highest-risk findings and overall risk posture.\n"
-                    "- Recommendations: bulleted list, each item tied to a specific "
-                    "  finding; prioritise by risk_level (Critical first).\n"
-                    "- Conclusion: 2-3 sentences wrapping up the engagement.\n"
+                    "  state the overall risk posture, number of critical/high findings, "
+                    "  and that a full remediation plan is included.\n"
+                    "- Conclusion: 2-3 sentences wrapping up the engagement and encouraging "
+                    "  re-testing after remediations are applied.\n"
                 )
             ),
         ]
         response = self.llm.invoke(messages)
 
         try:
-            import json
-            parsed = json.loads(response.content)
+            parsed = _json.loads(response.content)
             return {
-                "executive_summary": parsed.get("executive_summary", "## Executive Summary\n\n_Not generated._"),
-                "recommendations":   parsed.get("recommendations",   "## Recommendations\n\n_Not generated._"),
-                "conclusion":        parsed.get("conclusion",        "## Conclusion\n\n_Not generated._"),
+                "executive_summary": parsed.get("executive_summary",
+                                                "## Executive Summary\n\n_Not generated._"),
+                "conclusion":        parsed.get("conclusion",
+                                                "## Conclusion\n\n_Engagement complete._"),
             }
         except (ValueError, KeyError):
-            # Fallback: use raw LLM output as executive summary only
             return {
                 "executive_summary": f"## Executive Summary\n\n{response.content}",
-                "recommendations":   "## Recommendations\n\n_See detailed findings above._",
                 "conclusion":        "## Conclusion\n\n_Engagement complete._",
             }
 

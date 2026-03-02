@@ -22,6 +22,9 @@ class RTAIState(BaseModel):
     # OSINT results: one entry per service queried, accumulates across nodes
     osint_results: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
 
+    # Remediation entries: one per attack vector, sorted Critical-first
+    remediations: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
+
     # Current reasoning step produced by the active agent
     current_step: str = ""
 

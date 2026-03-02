@@ -2,6 +2,7 @@ from .base_agent import BaseAgent
 from .recon_agent import ReconAgent
 from .osint_agent import OsintAgent
 from .exploit_agent import ExploitAgent
+from .remediation_agent import RemediationAgent
 from .report_agent import ReportAgent
 
-__all__ = ["BaseAgent", "ReconAgent", "OsintAgent", "ExploitAgent", "ReportAgent"]
+__all__ = ["BaseAgent", "ReconAgent", "OsintAgent", "ExploitAgent", "RemediationAgent", "ReportAgent"]
