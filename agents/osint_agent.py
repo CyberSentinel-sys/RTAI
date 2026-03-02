@@ -1,10 +1,10 @@
 """
 agents/osint_agent.py
-OSINT Intelligence agent: consumes service/version data from the Nmap
-scan results and uses the Tavily search API to gather CVEs, known
-exploits, and official documentation for each discovered service.
-Findings are written to RTAIState.osint_results for downstream use by
-ExploitAgent, and a summary entry is appended to RTAIState.findings.
+OSINT Intelligence agent: extracts service names and versions from the
+recon finding in RTAIState.findings, runs a single focused Tavily
+search per service ("[Service] [Version] known vulnerabilities exploits"),
+then asks the LLM to summarise the top 3 high-risk items (CVEs, PoCs,
+default credentials) per service and appends them to state.findings.
 """
 from __future__ import annotations
 
@@ -22,51 +22,50 @@ from core.state import RTAIState
 class OsintAgent(BaseAgent):
     role = "OSINT Intelligence Analyst"
     goal = (
-        "Research discovered services and versions using open-source intelligence. "
-        "Find CVEs, public exploits, and official documentation to enrich the "
-        "exploitation analysis phase with verified, actionable intelligence."
+        "Using open-source intelligence, find the top 3 high-risk vulnerabilities "
+        "(CVEs, public PoCs, or default credentials) for every service discovered "
+        "during reconnaissance and deliver them as structured, actionable findings."
     )
 
-    # Maximum Tavily results per query — keeps token usage predictable
     _MAX_RESULTS = 5
 
     def run(self, state: RTAIState) -> dict[str, Any]:
         client = TavilyClient(api_key=Config.TAVILY_API_KEY)
 
-        services = self._extract_services(state.tool_outputs.get("nmap", {}))
+        services = self._extract_services(state)
         if not services:
             return {
                 "osint_results": [],
-                "findings": [{"phase": "osint", "target": state.target,
-                               "summary": "No services identified for OSINT research."}],
+                "findings": [{
+                    "phase": "osint",
+                    "target": state.target,
+                    "top_3_risks": [],
+                    "summary": "No services identified for OSINT research.",
+                }],
                 "current_step": "osint_complete",
             }
 
         osint_results: list[dict[str, Any]] = []
         for svc in services:
             label = svc["label"]
-            result_entry: dict[str, Any] = {
+            raw_hits = self._search(
+                client,
+                query=f"{label} known vulnerabilities exploits",
+            )
+            osint_results.append({
                 "service": label,
                 "port": svc["port"],
                 "protocol": svc["protocol"],
-                "cves": [],
-                "exploits": [],
-                "docs": [],
-            }
+                "raw_hits": raw_hits,
+            })
 
-            result_entry["cves"]    = self._search(client, f"{label} CVE vulnerability")
-            result_entry["exploits"] = self._search(client, f"{label} known exploit proof of concept")
-            result_entry["docs"]    = self._search(client, f"{label} official documentation changelog")
-
-            osint_results.append(result_entry)
-
-        # LLM synthesis — distil raw search results into analyst-grade notes
-        synthesis = self._synthesise(state.target, osint_results)
+        top_3_risks, synthesis = self._synthesise(state.target, osint_results)
 
         finding = {
             "phase": "osint",
             "target": state.target,
             "services_researched": [s["label"] for s in services],
+            "top_3_risks": top_3_risks,
             "llm_synthesis": synthesis,
         }
 
@@ -81,11 +80,22 @@ class OsintAgent(BaseAgent):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _extract_services(nmap_data: dict[str, Any]) -> list[dict[str, str]]:
+    def _extract_services(state: RTAIState) -> list[dict[str, str]]:
         """
-        Pull unique (product, version) combos from Nmap output.
-        Returns a deduplicated list of dicts with label, port, protocol.
+        Extract unique service/version labels.
+        Primary source: nmap_raw inside the recon finding (RTAIState.findings).
+        Fallback:       state.tool_outputs["nmap"] (set by ReconAgent).
         """
+        # Prefer the structured nmap data stored in findings by ReconAgent
+        recon_finding = next(
+            (f for f in state.findings if f.get("phase") == "recon"), {}
+        )
+        nmap_data: dict[str, Any] = (
+            recon_finding.get("nmap_raw")
+            or state.tool_outputs.get("nmap")
+            or {}
+        )
+
         seen: set[str] = set()
         services: list[dict[str, str]] = []
 
@@ -95,7 +105,6 @@ class OsintAgent(BaseAgent):
                 version = (port_info.get("version") or "").strip()
                 service = (port_info.get("service") or "").strip()
 
-                # Build the most descriptive label available
                 if product and version:
                     label = f"{product} {version}"
                 elif product:
@@ -103,7 +112,7 @@ class OsintAgent(BaseAgent):
                 elif service:
                     label = service
                 else:
-                    continue  # nothing useful to search for
+                    continue
 
                 if label not in seen:
                     seen.add(label)
@@ -116,7 +125,7 @@ class OsintAgent(BaseAgent):
         return services
 
     def _search(self, client: TavilyClient, query: str) -> list[dict[str, str]]:
-        """Run a single Tavily search and return a cleaned result list."""
+        """Run a single Tavily search and return cleaned results."""
         try:
             response = client.search(
                 query=query,
@@ -134,22 +143,53 @@ class OsintAgent(BaseAgent):
         except Exception as exc:  # noqa: BLE001
             return [{"error": str(exc)}]
 
-    def _synthesise(self, target: str, osint_results: list[dict[str, Any]]) -> str:
-        """Ask the LLM to distil the raw OSINT data into concise analyst notes."""
+    def _synthesise(
+        self,
+        target: str,
+        osint_results: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], str]:
+        """
+        Ask the LLM to extract the top 3 high-risk findings across all
+        services and return them as a structured list plus a prose summary.
+        """
         messages = [
             SystemMessage(content=self._system_prompt()),
             HumanMessage(
                 content=(
                     f"Target: {target}\n\n"
-                    f"Raw OSINT data (JSON):\n{json.dumps(osint_results, indent=2)}\n\n"
-                    "For each service, produce a concise analyst note with:\n"
-                    "  - Most critical CVEs found (include CVSS score if available)\n"
-                    "  - Most viable public exploits or PoCs\n"
-                    "  - Any relevant version-specific security advisories\n"
-                    "Flag any Critical or High severity items prominently. "
-                    "Be precise and cite sources (URLs) where available."
+                    f"Raw OSINT search results (JSON):\n"
+                    f"{json.dumps(osint_results, indent=2)}\n\n"
+                    "Identify the TOP 3 highest-risk findings across ALL services. "
+                    "Focus on: CVEs with high/critical CVSS scores, public PoCs or "
+                    "Metasploit modules, and known default credentials.\n\n"
+                    "Return your answer in this EXACT JSON format (no markdown fences):\n"
+                    "{\n"
+                    '  "top_3_risks": [\n'
+                    "    {\n"
+                    '      "rank": 1,\n'
+                    '      "service": "<service and version>",\n'
+                    '      "type": "CVE | PoC | DefaultCreds | Other",\n'
+                    '      "identifier": "<CVE-XXXX-XXXX or tool name>",\n'
+                    '      "cvss": "<score or N/A>",\n'
+                    '      "description": "<one sentence>",\n'
+                    '      "source_url": "<url or N/A>"\n'
+                    "    }\n"
+                    "  ],\n"
+                    '  "summary": "<3-5 sentence analyst summary of the OSINT phase>"\n'
+                    "}"
                 )
             ),
         ]
         response = self.llm.invoke(messages)
-        return response.content
+
+        # Parse the structured JSON response from the LLM
+        try:
+            parsed = json.loads(response.content)
+            top_3 = parsed.get("top_3_risks", [])
+            summary = parsed.get("summary", response.content)
+        except (json.JSONDecodeError, AttributeError):
+            # If the LLM doesn't return valid JSON, store raw content
+            top_3 = []
+            summary = response.content
+
+        return top_3, summary

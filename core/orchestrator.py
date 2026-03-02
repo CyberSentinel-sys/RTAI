@@ -1,11 +1,9 @@
 """
 core/orchestrator.py
-LangGraph-based orchestrator that routes between ReconAgent, OsintAgent,
-ExploitAgent, and ReportAgent based on engagement state.
+LangGraph-based orchestrator.
 
-Pipeline:
-    recon ──► osint ──► exploit ──► report
-      └─────────────────────────────────┘  (fallback if no hosts found)
+Pipeline (strictly linear):
+    START ──► recon ──► osint ──► exploit ──► report ──► END
 """
 from __future__ import annotations
 
@@ -40,19 +38,6 @@ def report_node(state: RTAIState) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Routing logic
-# ---------------------------------------------------------------------------
-
-def route_after_recon(state: RTAIState) -> str:
-    """Route to OSINT if hosts were discovered, otherwise skip to report."""
-    if state.finished:
-        return "report"
-    if state.tool_outputs.get("nmap", {}).get("hosts"):
-        return "osint"
-    return "report"
-
-
-# ---------------------------------------------------------------------------
 # Graph construction
 # ---------------------------------------------------------------------------
 
@@ -71,14 +56,9 @@ class Orchestrator:
 
         builder.set_entry_point("recon")
 
-        builder.add_conditional_edges(
-            "recon",
-            route_after_recon,
-            {"osint": "osint", "report": "report"},
-        )
-        # After OSINT always proceed to exploitation analysis
+        # Strictly linear — every engagement passes through all four stages
+        builder.add_edge("recon", "osint")
         builder.add_edge("osint", "exploit")
-        # After exploitation analysis always proceed to report
         builder.add_edge("exploit", "report")
         builder.add_edge("report", END)
 
