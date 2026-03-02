@@ -1,0 +1,15 @@
+# Core LLM / orchestration
+langchain>=0.2.0
+langchain-community>=0.2.0
+langchain-openai>=0.1.0
+langgraph>=0.1.0
+
+# Security tooling
+python-nmap>=0.7.1
+
+# Configuration / environment
+python-dotenv>=1.0.0
+
+# Utilities
+pydantic>=2.0.0
+colorama>=0.4.6
