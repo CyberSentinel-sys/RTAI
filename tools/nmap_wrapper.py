@@ -19,7 +19,7 @@ class NmapTool(BaseTool):
     )
 
     # Default arguments produce a service/version + OS detection scan.
-    DEFAULT_ARGS = "-sV -O --open -T4"
+    DEFAULT_ARGS = "-sT -sV -Pn --open -T4"
 
     def run(self, target: str, arguments: str = DEFAULT_ARGS) -> dict[str, Any]:
         """
