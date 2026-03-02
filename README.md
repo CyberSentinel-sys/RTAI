@@ -1,6 +1,6 @@
 # RTAI — AI-Driven Red Team Framework
 
-An autonomous penetration-testing framework powered by [LangGraph](https://github.com/langchain-ai/langgraph) and OpenAI. RTAI orchestrates five specialised AI agents through a strictly linear pipeline — from raw network reconnaissance to a publication-ready Markdown report with concrete, copy-paste remediation steps.
+An autonomous penetration-testing framework powered by [LangGraph](https://github.com/langchain-ai/langgraph) and OpenAI. RTAI orchestrates five specialised AI agents through a strictly linear pipeline — from raw network reconnaissance to a publication-ready Markdown report with concrete, copy-paste remediation steps — and a Streamlit CISO dashboard for visualising findings across engagements.
 
 > **Legal notice:** This tool is intended for use against systems you own or have explicit written authorisation to test. Unauthorised use is illegal.
 
@@ -46,7 +46,36 @@ START
 └────────┬─────────┘
          │
         END  →  reports/<engagement>_<date>_report.md
+                           │
+                           ▼
+                 ┌──────────────────┐
+                 │    dashboard.py  │  Streamlit CISO Dashboard
+                 │                  │  Reads reports/ → Plotly charts
+                 │                  │  + full report viewer
+                 └──────────────────┘
+                   http://localhost:8501
 ```
+
+---
+
+## CISO Dashboard
+
+```bash
+.venv/bin/streamlit run dashboard.py
+```
+
+Open `http://localhost:8501` in your browser.
+
+| Panel | Description |
+|---|---|
+| **Sidebar** | Engagement selector — lists all reports in `reports/`; shows target IP and date |
+| **Metric cards** | Total findings · Critical · High · Medium · Low (colour-coded) |
+| **Grouped bar chart** | Risk distribution across all engagements side by side |
+| **Donut chart** | Risk breakdown for the selected engagement |
+| **Port chips** | Each open port as a styled badge (`80/tcp`, `445/tcp`, …) |
+| **Report viewer** | Full Markdown report rendered in a scrollable dark panel |
+
+Dark-themed throughout (`#0E1117` background, `#FF4B4B` accent, monospace font). Theme configured in `.streamlit/config.toml`.
 
 ---
 
@@ -85,7 +114,10 @@ RTAI/
 │   ├── tool_registry.py       # Singleton tool registry
 │   └── nmap_wrapper.py        # python-nmap → structured dict output
 ├── logs/
-├── reports/                   # Auto-generated engagement reports
+├── reports/                   # Auto-generated engagement reports (gitignored)
+├── .streamlit/
+│   └── config.toml            # Dark theme configuration
+├── dashboard.py               # Streamlit CISO dashboard
 ├── main.py                    # CLI entry point
 ├── requirements.txt
 └── .env.example
@@ -145,8 +177,13 @@ Edit `.env` with your values:
 
 ## Usage
 
+### Run the pipeline
+
 ```bash
-# Nmap OS detection requires root
+# TCP connect scan (no root required)
+.venv/bin/python main.py --target <TARGET> --engagement "<NAME>"
+
+# With sudo for OS detection
 sudo .venv/bin/python main.py --target <TARGET> --engagement "<NAME>"
 ```
 
@@ -154,13 +191,20 @@ sudo .venv/bin/python main.py --target <TARGET> --engagement "<NAME>"
 
 ```bash
 # Single host
-sudo .venv/bin/python main.py --target 192.168.1.10 --engagement "Lab_Q1"
+.venv/bin/python main.py --target 192.168.1.10 --engagement "Lab_Q1"
 
 # CIDR range
-sudo .venv/bin/python main.py --target 10.0.0.0/24 --engagement "Internal_Assessment"
+.venv/bin/python main.py --target 10.0.0.0/24 --engagement "Internal_Assessment"
 ```
 
 The report is saved to `reports/<engagement>_<date>_report.md` and printed to stdout.
+
+### Launch the dashboard
+
+```bash
+.venv/bin/streamlit run dashboard.py
+# → http://localhost:8501
+```
 
 ---
 
