@@ -1,23 +1,24 @@
 # Core LLM / orchestration
-langchain>=0.2.0
-langchain-community>=0.2.0
-langchain-openai>=0.1.0
-langgraph>=0.1.0
+langchain>=1.2.0
+langchain-community>=0.4.0
+langchain-openai>=1.1.0
+langgraph>=1.0.0
 
 # Security tooling
 python-nmap>=0.7.1
-tavily-python>=0.3.0
+tavily-python>=0.7.0
 
 # Configuration / environment
-python-dotenv>=1.0.0
+python-dotenv>=1.2.0
 
 # Dashboard
-streamlit>=1.35.0
-plotly>=5.22.0
+streamlit>=1.54.0
+plotly>=6.5.0
+streamlit-agraph>=0.0.45
 
 # Reporting
 python-pptx>=1.0.0
 
 # Utilities
-pydantic>=2.0.0
+pydantic>=2.12.0
 colorama>=0.4.6

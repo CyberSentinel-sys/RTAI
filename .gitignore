@@ -8,10 +8,19 @@
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+*.egg-info/
+.coverage
+dist/
+build/
 
-# Reports & logs (real engagement data — keep private)
+# macOS
+.DS_Store
+
+# Reports, logs & remediation outputs (real engagement data — keep private)
 reports/
-logs/*.log
+logs/
+remediation/
 
 # Generated files
 *.pptx

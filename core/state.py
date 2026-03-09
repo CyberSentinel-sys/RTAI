@@ -25,11 +25,21 @@ class RTAIState(BaseModel):
     # Remediation entries: one per attack vector, sorted Critical-first
     remediations: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
 
+    # Chronological log of agent actions; entries appended by each agent
+    action_log: Annotated[list[dict[str, Any]], operator.add] = Field(default_factory=list)
+
     # Current reasoning step produced by the active agent
     current_step: str = ""
 
     # Set to True by any node that decides the engagement is complete
     finished: bool = False
+
+    # Approval gate — set by SwarmController after FixerAgent generates scripts.
+    # The Streamlit Dashboard shows an "Approve" button while this is True and
+    # approval_granted is False; the "Apply Fixes" button is disabled until
+    # approval_granted is True.
+    awaiting_approval: bool = False
+    approval_granted: bool = False
 
     # Final markdown report (populated by ReportAgent)
     report: str = ""

@@ -8,8 +8,11 @@ Usage:
 """
 from __future__ import annotations
 
+from typing import Any
+
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.enum.text import PP_ALIGN
 from pptx.util import Inches, Pt, Emu
 
@@ -30,6 +33,8 @@ C_GREEN  = RGBColor(0x98, 0xC3, 0x79)   # #98C379  code green
 SLIDE_W  = Inches(13.33)
 SLIDE_H  = Inches(7.5)
 
+BLANK_LAYOUT_IDX = 6   # index of the fully-blank slide layout
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -42,26 +47,24 @@ def new_prs() -> Presentation:
     return prs
 
 
-def blank_slide(prs: Presentation):
-    layout = prs.slide_layouts[6]   # completely blank
+def blank_slide(prs: Presentation) -> Any:
+    layout = prs.slide_layouts[BLANK_LAYOUT_IDX]   # completely blank
     return prs.slides.add_slide(layout)
 
 
 def fill_bg(slide, color: RGBColor = BG) -> None:
-    from pptx.oxml.ns import qn
-    from lxml import etree
     bg = slide.background
     fill = bg.fill
     fill.solid()
     fill.fore_color.rgb = color
 
 
-def box(slide, x, y, w, h,
+def box(slide: Any, x: float, y: float, w: float, h: float,
         fill: RGBColor | None = None,
         border: RGBColor | None = None,
-        border_pt: float = 1.0):
+        border_pt: float = 1.0) -> Any:
     shape = slide.shapes.add_shape(
-        1,   # MSO_SHAPE_TYPE.RECTANGLE
+        MSO_SHAPE_TYPE.RECTANGLE,
         Inches(x), Inches(y), Inches(w), Inches(h)
     )
     shape.fill.solid() if fill else shape.fill.background()
@@ -76,10 +79,10 @@ def box(slide, x, y, w, h,
     return shape
 
 
-def txt(slide, text, x, y, w, h,
-        size=18, bold=False, color=WHITE,
-        align=PP_ALIGN.LEFT, italic=False,
-        font="Courier New"):
+def txt(slide: Any, text: str, x: float, y: float, w: float, h: float,
+        size: float = 18, bold: bool = False, color: RGBColor = WHITE,
+        align: Any = PP_ALIGN.LEFT, italic: bool = False,
+        font: str = "Courier New") -> Any:
     txb = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
     tf  = txb.text_frame
     tf.word_wrap = True
@@ -95,12 +98,12 @@ def txt(slide, text, x, y, w, h,
     return txb
 
 
-def accent_bar(slide, y=0.18, h=0.06):
+def accent_bar(slide: Any, y: float = 0.18, h: float = 0.06) -> None:
     """Thin red horizontal rule near the top."""
     box(slide, 0.5, y, 12.33, h, fill=ACCENT, border=None)
 
 
-def slide_number(slide, n: int):
+def slide_number(slide: Any, n: int) -> None:
     txt(slide, f"{n} / 5", 12.5, 7.1, 0.7, 0.3,
         size=9, color=MUTED, align=PP_ALIGN.RIGHT)
 

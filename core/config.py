@@ -20,13 +20,19 @@ class Config:
     # OSINT
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
 
+    # Telegram
+    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
+
     # Engagement
     TARGET_SCOPE: str = os.getenv("TARGET_SCOPE", "")
     ENGAGEMENT_NAME: str = os.getenv("ENGAGEMENT_NAME", "RTAI_Engagement")
+    SCAN_SELF: bool = os.getenv("SCAN_SELF", "false").strip().lower() in ("1", "true", "yes")
 
     # Paths
     LOG_DIR: Path = _ROOT / "logs"
     REPORT_DIR: Path = _ROOT / "reports"
+    REMEDIATION_DIR: Path = _ROOT / "remediation"
 
     @classmethod
     def validate(cls) -> None:
@@ -38,3 +44,4 @@ class Config:
             raise EnvironmentError("TARGET_SCOPE is not set in .env")
         cls.LOG_DIR.mkdir(exist_ok=True)
         cls.REPORT_DIR.mkdir(exist_ok=True)
+        cls.REMEDIATION_DIR.mkdir(exist_ok=True)
