@@ -34,7 +34,10 @@ class NmapTool(BaseTool):
         ports, service info, and OS matches.
         """
         scanner = nmap.PortScanner()
-        scanner.scan(hosts=target, arguments=arguments)
+        try:
+            scanner.scan(hosts=target, arguments=arguments)
+        except nmap.PortScannerError as e:
+            return {"error": str(e), "hosts": {}}
 
         results: list[dict[str, Any]] = []
         for host in scanner.all_hosts():

@@ -304,7 +304,7 @@ class ReportAgent(BaseAgent):
                 "conclusion":        parsed.get("conclusion",
                                                 "## Conclusion\n\n_Engagement complete._"),
             }
-        except (ValueError, KeyError):
+        except (_json.JSONDecodeError, KeyError):
             return {
                 "executive_summary": f"## Executive Summary\n\n{response.content}",
                 "conclusion":        "## Conclusion\n\n_Engagement complete._",
