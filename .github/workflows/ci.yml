@@ -1,0 +1,36 @@
+name: RTAI Security & Build CI
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 bandit
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Syntax Check (Flake8)
+      run: |
+        # Stop the build if there are critical Python syntax errors
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        
+    - name: Security Audit (Bandit)
+      run: |
+        # Scan code for vulnerabilities (set to not fail the build for educational payloads)
+        bandit -r agents/ core/ main.py -lll || true
