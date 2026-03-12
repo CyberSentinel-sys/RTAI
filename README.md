@@ -1,5 +1,5 @@
 # **RTAI — Autonomous Red Team AI**
-
+![CI Pipeline](https://github.com/CyberSentinel-sys/RTAI/actions/workflows/ci.yml/badge.svg)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://python.org)
 [![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-orange?logo=langchain)](https://github.com/langchain-ai/langgraph)
 [![OpenAI](https://img.shields.io/badge/LLM-GPT--4o-412991?logo=openai)](https://openai.com)
