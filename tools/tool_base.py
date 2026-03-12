@@ -17,4 +17,5 @@ class BaseTool(ABC):
         """Execute the tool and return a structured result dict."""
 
     def schema(self) -> dict[str, str]:
+        """Return a minimal metadata dict with the tool's name and description."""
         return {"name": self.name, "description": self.description}

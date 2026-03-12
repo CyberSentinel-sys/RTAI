@@ -11,6 +11,7 @@ from core.orchestrator import Orchestrator
 
 
 def parse_args() -> argparse.Namespace:
+    """Build and parse CLI arguments for the RTAI entry point."""
     parser = argparse.ArgumentParser(
         description="RTAI – AI-Driven Red Team Framework"
     )
@@ -26,6 +27,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the RTAI pipeline and print the final engagement report to stdout."""
     args = parse_args()
     orchestrator = Orchestrator()
     final_state = orchestrator.run(

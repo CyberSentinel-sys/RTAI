@@ -12,6 +12,7 @@ Design principle:
 """
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -256,7 +257,6 @@ class ReportAgent(BaseAgent):
         Returns a dict with keys: executive_summary, conclusion.
         (Recommendations are now covered by the structured Remediation Plan section.)
         """
-        import json as _json
         osint_finding   = next((f for f in state.findings if f.get("phase") == "osint"), {})
         exploit_finding = next(
             (f for f in state.findings if f.get("phase") == "exploit_analysis"), {}
@@ -297,14 +297,14 @@ class ReportAgent(BaseAgent):
         response = self.llm.invoke(messages)
 
         try:
-            parsed = _json.loads(response.content)
+            parsed = json.loads(response.content)
             return {
                 "executive_summary": parsed.get("executive_summary",
                                                 "## Executive Summary\n\n_Not generated._"),
                 "conclusion":        parsed.get("conclusion",
                                                 "## Conclusion\n\n_Engagement complete._"),
             }
-        except (_json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError):
             return {
                 "executive_summary": f"## Executive Summary\n\n{response.content}",
                 "conclusion":        "## Conclusion\n\n_Engagement complete._",
@@ -316,5 +316,5 @@ class ReportAgent(BaseAgent):
 
     @staticmethod
     def _fmt(obj: Any) -> str:
-        import json
+        """Serialise *obj* to indented JSON string for LLM prompt injection."""
         return json.dumps(obj, indent=2)

@@ -71,6 +71,7 @@ class NmapTool(BaseTool):
 
     @staticmethod
     def _parse_os(scanner: nmap.PortScanner, host: str) -> list[dict[str, Any]]:
+        """Extract the top-3 OS match guesses for *host* from the scanner result."""
         try:
             matches = scanner[host]["osmatch"]
             return [
