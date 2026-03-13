@@ -105,6 +105,14 @@ All agents share a single `RTAIState` Pydantic model. Findings accumulate across
 
 ### Installation
 
+### 🐳 Run with Docker (Recommended)
+You can launch the entire RTAI Swarm and CISO Dashboard using Docker without installing local dependencies.
+
+1. Clone the repository and configure your `.env` file.
+2. Run Docker Compose:
+```bash
+docker-compose up --build
+
 ```bash
 # 1. Clone
 git clone git@github.com:CyberSentinel-sys/RTAI.git
