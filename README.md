@@ -1,166 +1,231 @@
-# RTAI — Autonomous Red Team AI
+# **RTAI — Autonomous Red Team AI**
+![CI Pipeline](https://github.com/CyberSentinel-sys/RTAI/actions/workflows/ci.yml/badge.svg)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://python.org)
+[![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-orange?logo=langchain)](https://github.com/langchain-ai/langgraph)
+[![OpenAI](https://img.shields.io/badge/LLM-GPT--4o-412991?logo=openai)](https://openai.com)
+[![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-FF4B4B?logo=streamlit)](https://streamlit.io)
+[![License](https://img.shields.io/badge/Use-Authorised%20Testing%20Only-red)](#legal-notice)
 
-> **From zero to full CVE-grounded pentest report — autonomously.**
-
-RTAI is a portfolio-grade autonomous penetration-testing framework that chains five specialised AI agents through a [LangGraph](https://github.com/langchain-ai/langgraph) `StateGraph`. Point it at an authorised target, and it delivers a publication-ready Markdown report with structured CVE findings, CVSS-grounded risk ratings, and copy-paste remediation steps — no human in the loop.
-
-A companion Streamlit CISO dashboard visualises findings across engagements in real time.
-
-> **Legal notice:** This tool is intended for use against systems you own or have explicit written authorisation to test. Unauthorised use is illegal.
+> **From zero to full CVE-grounded pentest report — fully autonomously.**
 
 ---
 
-## Quick Start
+## What It Does
+
+RTAI is a **multi-agent red team AI framework** that autonomously orchestrates a complete penetration-testing pipeline. Point it at an authorised target, and a coordinated swarm of specialised AI agents will:
+
+1. **Enumerate** the target with stealth-optimised Nmap scanning (SYN-stealth when root, TCP-connect otherwise)
+2. **Research** every discovered service against live CVE feeds via Tavily OSINT
+3. **Analyse** findings with a CVE database and Dynamic Risk Scoring formula (CVSS × reachability + exploit bonuses)
+4. **Plan** a multi-stage attack path with realistic ATT&CK-mapped techniques
+5. **Generate** executable Bash patches, IPTables rules, and Ansible playbooks — with a safety filter that catches disruptive operations before they reach the operator
+6. **Deliver** a publication-ready Markdown report and render it in an interactive CISO dashboard
+
+Every output is grounded in structured state data. Tables and findings are built deterministically in Python — the LLM only writes narrative prose, eliminating hallucinated CVEs or risk ratings.
+
+---
+
+## Architecture
+
+```mermaid
+graph TD
+    CLI["main.py\nCLI Entry Point"] --> ORC
+
+    subgraph ORC["Orchestrator — LangGraph StateGraph"]
+        direction LR
+        RC[ReconAgent\nNmap Scanner] --> OS[OsintAgent\nTavily Search]
+        OS --> EX[ExploitAgent\nCVE Analyzer]
+        EX --> RM[RemediationAgent\nFix Generator]
+        RM --> RP[ReportAgent\nMarkdown Report]
+    end
+
+    subgraph SWARM["Advanced Swarm Pipeline"]
+        direction LR
+        SC[ScoutAgent\nStealthy Recon] --> AN[AnalystAgent\nDynamic Risk Scoring]
+        AN --> ST[StrategistAgent\n3-Step Reasoning Chain]
+        ST --> FX[FixerAgent\nScript Generator + Safety Filter]
+    end
+
+    ORC -- "RTAIState\nPydantic Model" --> SWARM
+
+    RP --> REPORTS[(reports/)]
+    FX --> REMED[(remediation/)]
+    REPORTS --> DASH[Dashboard\nStreamlit CISO UI]
+
+    style ORC fill:#1A1D2E,color:#E0E0E0,stroke:#FF4B4B
+    style SWARM fill:#1A1D2E,color:#E0E0E0,stroke:#FF4B4B
+```
+
+All agents share a single `RTAIState` Pydantic model. Findings accumulate across nodes using LangGraph's `operator.add` reducer — every agent appends its output rather than overwriting, creating a complete, auditable engagement record.
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| LLM Backbone | OpenAI GPT-4o via LangChain | Reasoning, analysis, narration |
+| Agent Orchestration | LangGraph StateGraph | Linear and conditional pipeline management |
+| Shared State | Pydantic v2 BaseModel | Typed, validated state passed between all agents |
+| Network Recon | python-nmap + Scapy (optional) | Active host discovery and service scanning |
+| OSINT | Tavily Search API | Live CVE / vulnerability research |
+| CVE Analysis | Custom CveDatabase engine | Dynamic Risk Scoring with CVSS × reachability formula |
+| Configuration | python-dotenv | Secret-free environment variable management |
+| Dashboard | Streamlit + Plotly + streamlit-agraph | Interactive CISO reporting UI |
+| Remediation Output | Bash + Ansible YAML | Copy-paste ready fix scripts with safety filters |
+| Notifications | Telegram Bot API | Real-time mobile engagement alerts |
+| Presentation | python-pptx | Automated dark-themed slide deck generation |
+
+---
+
+## Key Features
+
+| Capability | Detail |
+|---|---|
+| Dual pipeline | Legacy 5-agent (recon→report) and advanced 4-agent swarm (scout→fixer) |
+| CVE-grounded findings | Every risk rating derived from real CVSS scores — never hallucinated |
+| Dynamic Risk Score | `min(10.0, cvss × reachability + exploit_bonus + auth_bypass_bonus)` |
+| Safety filter | Catches reboot, critical service restarts, and blanket firewall flushes before execution |
+| Human-in-the-loop | Approval gate blocks all fix deployment until operator confirms |
+| Maintenance-window guard | High-traffic port restarts (DNS, HTTP/S) restricted to 02:00–05:00 UTC |
+| Deterministic reporting | Tables and port data built from typed Python state; LLM writes prose only |
+| DRY_RUN mode | Preview all proposed fixes without applying any changes |
+| Full audit trail | Timestamped `action_log` for every agent event across the engagement |
+
+---
+
+## Setup
+
+### Prerequisites
+
+- Python 3.10+
+- `nmap` binary on PATH: `sudo apt install nmap`
+- Docker & Docker Compose *(Optional)*
+- OpenAI API key
+- Tavily API key *(free tier available)*
+
+---
+
+### 🐳 Run with Docker (Recommended)
+
+You can launch the entire RTAI Swarm and CISO Dashboard using Docker without installing local dependencies.
+
+Clone the repository and configure your `.env` file (see steps 1 & 4 below).
+
+Run Docker Compose:
 
 ```bash
-# 1 — Clone and install
-git clone git@github.com:CyberSentinel-sys/RTAI.git && cd RTAI
-python3 -m venv .venv && source .venv/bin/activate
+docker-compose up --build
+```
+
+Open your browser and navigate to `http://localhost:8501` to view the dashboard.
+
+---
+
+### 💻 Standard Installation (Local Environment)
+
+```bash
+# 1. Clone
+git clone git@github.com:CyberSentinel-sys/RTAI.git
+cd RTAI
+
+# 2. Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 2 — Configure
-cp .env.example .env          # add OPENAI_API_KEY + TAVILY_API_KEY
-
-# 3 — Run
-python main.py --target <TARGET> --engagement "My_Lab"
+# 4. Configure secrets
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY and TAVILY_API_KEY
 ```
-
-The report lands in `reports/<engagement>_<date>_report.md`.
-See `samples/sample_report.md` for an example of the full output format.
 
 ---
 
-## Why RTAI?
+### Environment Variables
 
-| Capability | How it works |
-|---|---|
-| **Fully autonomous pipeline** | LangGraph `StateGraph` — no human prompts between stages |
-| **CVE-grounded findings** | Tavily live search → LLM extracts CVEs, CVSS, PoC links |
-| **CVSS-derived risk levels** | `risk_level` set from OSINT CVSS scores, never hallucinated |
-| **Structured remediation** | Copy-paste shell commands + verification step per finding |
-| **Deterministic reporting** | Tables/findings built in Python from typed state; LLM writes prose only |
-| **CISO dashboard** | Streamlit + Plotly — grouped bar chart, donut, metric cards, port chips |
-| **Recruiter demo** | `python generate_pptx.py` → 5-slide dark-themed deck in seconds |
-
----
-
-## Pipeline
-
-```
-START
-  │
-  ▼
-┌──────────────────┐
-│   ReconAgent     │  Nmap scan (service/version/OS detection)
-│                  │  LLM interprets open ports and attack surface
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│   OsintAgent     │  Tavily search: "[Service] [Version] known vulnerabilities exploits"
-│                  │  LLM extracts top 3 high-risk findings (CVEs, PoCs, default creds)
-│                  │  → stored as structured top_3_risks in state.findings
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│   ExploitAgent   │  Ranks attack vectors by likelihood & impact
-│                  │  risk_level derived from OSINT CVSS scores (not inferred)
-│                  │  CVE identifiers cited directly from OSINT findings
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│RemediationAgent  │  One structured remediation per attack vector
-│                  │  Outputs: steps[], copy-paste code_snippet, verification command
-│                  │  Sorted Critical → High → Medium → Low
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│   ReportAgent    │  Structured Markdown report
-│                  │  Tables/findings built from state data (deterministic)
-│                  │  Executive Summary & Conclusion written by LLM
-└────────┬─────────┘
-         │
-        END  →  reports/<engagement>_<date>_report.md
-                           │
-                           ▼
-                 ┌──────────────────┐
-                 │    dashboard.py  │  Streamlit CISO Dashboard
-                 │                  │  Reads reports/ → Plotly charts
-                 │                  │  + full report viewer
-                 └──────────────────┘
-                   http://localhost:8501
-```
-
-All agents communicate through a single `RTAIState` Pydantic model — findings accumulate across nodes using LangGraph's `operator.add` reducer.
+| Variable | Description | Required |
+|---|---|---|
+| `OPENAI_API_KEY` | OpenAI API key | Yes |
+| `TAVILY_API_KEY` | Tavily search API key | Yes |
+| `TARGET_SCOPE` | Authorised target — IP, hostname, or CIDR | Yes |
+| `LLM_MODEL` | Model name (default: `gpt-4o`) | No |
+| `LLM_TEMPERATURE` | Sampling temperature (default: `0.2`) | No |
+| `ENGAGEMENT_NAME` | Label used in report filename (default: `RTAI_Engagement`) | No |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token for alerts | No |
+| `TELEGRAM_CHAT_ID` | Telegram chat ID for alerts | No |
+| `SCAN_SELF` | Include localhost and LAN IP in scan (`true`/`false`) | No |
 
 ---
 
-## CISO Dashboard
+## Usage
+
+### Run the Pipeline
+
+```bash
+# Standard scan (TCP connect, no root required)
+.venv/bin/python main.py --target <TARGET> --engagement "My_Lab"
+
+# Stealth scan with OS detection (SYN scan requires root)
+sudo .venv/bin/python main.py --target <TARGET> --engagement "My_Lab"
+```
+
+### Examples
+
+```bash
+# Single host
+.venv/bin/python main.py --target 192.168.1.10 --engagement "Lab_Q1"
+
+# CIDR subnet (auto-discovers live hosts via ARP sweep, then scans only them)
+sudo .venv/bin/python main.py --target 10.0.0.0/24 --engagement "Internal_Assessment"
+```
+
+The report is saved to `reports/<engagement>_<date>_report.md` and printed to stdout.
+
+---
+
+### Launch the CISO Dashboard
 
 ```bash
 .venv/bin/streamlit run dashboard.py
+# → http://localhost:8501
 ```
-
-Open `http://localhost:8501` in your browser.
 
 | Panel | Description |
 |---|---|
-| **Sidebar** | Engagement selector — lists all reports in `reports/`; shows target IP and date |
-| **Metric cards** | Total findings · Critical · High · Medium · Low (colour-coded) |
-| **Grouped bar chart** | Risk distribution across all engagements side by side |
-| **Donut chart** | Risk breakdown for the selected engagement |
-| **Port chips** | Each open port as a styled badge (`80/tcp`, `445/tcp`, …) |
-| **Report viewer** | Full Markdown report rendered in a scrollable dark panel |
-
-Dark-themed throughout (`#0E1117` background, `#FF4B4B` accent, monospace font).
+| CISO Overview | Metric cards (Critical / High / Medium / Low) + grouped bar chart across all engagements |
+| Swarm Live Feed | Real-time action log viewer |
+| Network Map | streamlit-agraph force-directed host/service graph |
+| Remediation | `Proposed_Fixes.sh` with syntax highlighting + DRY-RUN and Apply controls |
+| Executive Report | Full Markdown report rendered in a scrollable dark panel |
 
 ---
 
-## LinkedIn / Portfolio Presentation
+### Generate a Presentation Deck
 
 ```bash
 python generate_pptx.py
+# → RTAI_LinkedIn_Presentation.pptx  (5-slide dark-themed deck)
 ```
-
-Generates `RTAI_LinkedIn_Presentation.pptx` — a 5-slide dark-themed deck covering the pipeline, real findings, automated remediation, and roadmap. Requires `python-pptx` (already in `requirements.txt`).
-
----
-
-## Sample Output
-
-`samples/sample_report.md` contains a complete mock report generated against a fictional target (`192.0.2.10`) so you can review the full output format without any real engagement data.
-
----
-
-## Report Output
-
-| Section | Built by |
-|---|---|
-| Header — engagement, target, date, classification | Python / state data |
-| Executive Summary | LLM narrative |
-| Scope & Methodology | Python / state data |
-| Reconnaissance — OS detection + open ports table | Python / Nmap results |
-| OSINT Intelligence — top-3 CVE/PoC/DefaultCreds table + analyst summary | Python / OSINT findings |
-| Exploitation Analysis — attack vectors with `risk_level` | Python / exploit findings |
-| Remediation Plan — summary table + per-finding steps, code block, verification | Python / remediation findings |
-| Conclusion | LLM narrative |
 
 ---
 
 ## Project Structure
 
-```
+```plaintext
 RTAI/
 ├── agents/
-│   ├── base_agent.py          # Abstract base; wraps ChatOpenAI
+│   ├── base_agent.py          # Abstract base; ChatOpenAI wrapper + action logging
 │   ├── recon_agent.py         # Nmap scan + LLM attack-surface analysis
-│   ├── osint_agent.py         # Tavily search + top-3 high-risk synthesis
-│   ├── exploit_agent.py       # Attack vector ranking (OSINT-grounded)
+│   ├── osint_agent.py         # Tavily OSINT + top-3 high-risk CVE synthesis
+│   ├── exploit_agent.py       # Attack vector ranking (CVSS-grounded)
 │   ├── remediation_agent.py   # Per-vector steps, code snippets, verification
-│   └── report_agent.py        # Structured Markdown report generation
+│   ├── report_agent.py        # Structured Markdown report generation
+│   ├── scout_agent.py         # Two-phase stealth recon (ARP sweep + Nmap)
+│   ├── analyst_agent.py       # CVE cross-reference + Dynamic Risk Scoring
+│   ├── strategist_agent.py    # 3-step LLM reasoning: triage → path → battle plan
+│   └── fixer_agent.py         # Script gen + Safety Filter + ServiceImpactAnalyzer
 ├── core/
 │   ├── config.py              # dotenv loader + startup validation
 │   ├── state.py               # Pydantic RTAIState (shared across all nodes)
@@ -170,120 +235,27 @@ RTAI/
 │   ├── tool_registry.py       # Singleton tool registry
 │   └── nmap_wrapper.py        # python-nmap → structured dict output
 ├── samples/
-│   └── sample_report.md       # Example output — fictional target, no real data
-├── logs/
-├── reports/                   # Auto-generated engagement reports (gitignored)
+│   └── sample_report.md       # Example output — fictional target
+├── docs/                      # HTML landing page
 ├── .streamlit/
 │   └── config.toml            # Dark theme configuration
-├── dashboard.py               # Streamlit CISO dashboard
+├── dashboard.py               # Streamlit CISO dashboard (~60 KB)
 ├── generate_pptx.py           # Generates LinkedIn presentation deck
 ├── main.py                    # CLI entry point
+├── Dockerfile                 # Docker container instructions
+├── docker-compose.yml         # Multi-container orchestrator config
 ├── requirements.txt
-└── .env.example
+├── .env.example               # Secret-free environment template
+└── .gitignore
 ```
 
 ---
 
-## Requirements
+## Extending RTAI
 
-- Python 3.10+
-- `nmap` binary on `PATH` (`sudo apt install nmap`)
-- [OpenAI API key](https://platform.openai.com/api-keys)
-- [Tavily API key](https://app.tavily.com) (free tier available)
+### Adding a New Tool
 
----
-
-## Setup
-
-### 1. Clone the repository
-
-```bash
-git clone git@github.com:CyberSentinel-sys/RTAI.git
-cd RTAI
-```
-
-### 2. Create and activate a virtual environment
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configure the environment
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your values:
-
-| Variable | Description | Default |
-|---|---|---|
-| `OPENAI_API_KEY` | OpenAI API key | — |
-| `TAVILY_API_KEY` | Tavily search API key | — |
-| `LLM_MODEL` | Model to use | `gpt-4o` |
-| `LLM_TEMPERATURE` | Sampling temperature | `0.2` |
-| `TARGET_SCOPE` | Authorised target — IP, hostname, or CIDR | — |
-| `ENGAGEMENT_NAME` | Label used in the report filename | `RTAI_Engagement` |
-
----
-
-## Usage
-
-### Run the pipeline
-
-```bash
-# TCP connect scan (no root required)
-.venv/bin/python main.py --target <TARGET> --engagement "<NAME>"
-
-# With sudo for OS detection
-sudo .venv/bin/python main.py --target <TARGET> --engagement "<NAME>"
-```
-
-### Examples
-
-```bash
-# Single host
-.venv/bin/python main.py --target 192.168.1.10 --engagement "Lab_Q1"
-
-# CIDR range
-.venv/bin/python main.py --target 10.0.0.0/24 --engagement "Internal_Assessment"
-```
-
-The report is saved to `reports/<engagement>_<date>_report.md` and printed to stdout.
-
-### Launch the dashboard
-
-```bash
-.venv/bin/streamlit run dashboard.py
-# → http://localhost:8501
-```
-
----
-
-## Shared State
-
-All agents communicate through `RTAIState` (a Pydantic model). Key fields:
-
-| Field | Type | Written by | Read by |
-|---|---|---|---|
-| `tool_outputs["nmap"]` | `dict` | ReconAgent | OsintAgent, ExploitAgent |
-| `findings` | `list[dict]` (append) | All agents | All agents, ReportAgent |
-| `osint_results` | `list[dict]` (append) | OsintAgent | ExploitAgent, ReportAgent |
-| `remediations` | `list[dict]` (append) | RemediationAgent | ReportAgent |
-| `report` | `str` | ReportAgent | `main.py` |
-
----
-
-## Adding New Tools
-
-1. Create `tools/my_tool.py` subclassing `BaseTool`:
+Create `tools/my_tool.py` subclassing `BaseTool`:
 
 ```python
 from tools.tool_base import BaseTool
@@ -296,12 +268,35 @@ class MyTool(BaseTool):
         return {"result": ...}
 ```
 
-2. Register it in `tools/tool_registry.py` inside `ToolRegistry.default()`:
+Register in `tools/tool_registry.py` inside `ToolRegistry.default()`:
 
 ```python
 from tools.my_tool import MyTool
 cls._instance.register(MyTool())
 ```
+
+### Upgrading the CVE Database
+
+Subclass `CveDatabase` in `analyst_agent.py` and override `lookup()` to call the NVD API or any live feed:
+
+```python
+class NvdCveDatabase(CveDatabase):
+    def lookup(self, product: str, version: str) -> list[CveRecord]:
+        # Call NVD API and map results to CveRecord TypedDicts
+        ...
+```
+
+---
+
+## Sample Output
+
+`samples/sample_report.md` contains a complete mock report generated against a fictional target (`192.0.2.10`) showing the full output format — port tables, CVE findings, OSINT synthesis, attack vectors, remediation plan, and executive summary.
+
+---
+
+## Legal Notice
+
+This tool is intended exclusively for use against systems you own or have explicit written authorisation to test. Unauthorised use is illegal and unethical. The authors accept no liability for misuse.
 
 ---
 
