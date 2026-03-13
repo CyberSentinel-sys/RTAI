@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  rtai-dashboard:
+    build: .
+    container_name: rtai-dashboard
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - ./samples:/app/samples
+      - ./logs:/app/logs
