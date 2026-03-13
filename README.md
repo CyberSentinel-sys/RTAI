@@ -114,6 +114,8 @@ You can launch the entire RTAI Swarm and CISO Dashboard using Docker without ins
 docker-compose up --build
 ```bash
 
+Open your browser and navigate to http://localhost:8501 to view the dashboard.
+
 # 1. Clone
 git clone git@github.com:CyberSentinel-sys/RTAI.git
 cd RTAI
