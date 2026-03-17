@@ -41,6 +41,12 @@ class ToolRegistry:
         """Return the shared singleton, creating and populating it on first call."""
         if cls._instance is None:
             from tools.nmap_wrapper import NmapTool
+            from tools.local_osint_tool import LocalExploitSearchTool
+            from tools.c2_hunter_tool import C2HunterTool
+            from tools.memory_hunter_tool import MemoryHunterTool
             cls._instance = cls()
             cls._instance.register(NmapTool())
+            cls._instance.register(LocalExploitSearchTool())
+            cls._instance.register(C2HunterTool())
+            cls._instance.register(MemoryHunterTool())
         return cls._instance

@@ -413,7 +413,9 @@ class SwarmController:
 
 from agents.scout_agent      import ScoutAgent      as _Scout       # noqa: E402
 from agents.analyst_agent    import AnalystAgent    as _Analyst     # noqa: E402
+from agents.hunter_agent     import HunterAgent     as _Hunter      # noqa: E402
 from agents.strategist_agent import StrategistAgent as _Strategist  # noqa: E402
 from agents.fixer_agent      import FixerAgent      as _Fixer       # noqa: E402
+from agents.report_agent     import ReportAgent     as _Report      # noqa: E402
 
-SwarmController.PIPELINE = [_Scout, _Analyst, _Strategist, _Fixer]
+SwarmController.PIPELINE = [_Scout, _Analyst, _Hunter, _Strategist, _Fixer, _Report]

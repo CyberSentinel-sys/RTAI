@@ -74,6 +74,7 @@ from typing import Any, TypedDict
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.base_agent import BaseAgent
+from core.config import Config
 from core.state import RTAIState
 
 
@@ -678,6 +679,80 @@ class CveDatabase:
 
 
 # ---------------------------------------------------------------------------
+# Local SQLite CVE adapter
+# ---------------------------------------------------------------------------
+
+def _cvss_to_severity(score: float) -> str:
+    if score >= 9.0:
+        return "Critical"
+    if score >= 7.0:
+        return "High"
+    if score >= 4.0:
+        return "Medium"
+    return "Low"
+
+
+class LocalCveDbAdapter:
+    """
+    Wraps ``LocalCveDatabase`` and exposes a ``lookup()`` method that returns
+    ``CveRecord``-compatible dicts so the rest of AnalystAgent is unchanged.
+
+    Fields not stored in the SQLite schema (``exploit_available``,
+    ``exploit_type``, ``patch_available``, ``reference``) are derived from
+    the description text or set to conservative defaults.
+    """
+
+    def __init__(self) -> None:
+        from core.local_cve_db import LocalCveDatabase
+        self._db = LocalCveDatabase()
+
+    def lookup(self, product: str, version: str) -> list[CveRecord]:  # noqa: ARG002
+        rows = self._db.search_by_product(product)
+        records: list[CveRecord] = []
+        for row in rows:
+            desc_lower = row["description"].lower()
+            exploit_available = any(
+                kw in desc_lower
+                for kw in (
+                    "rce", "remote code execution", "exploit", "backdoor",
+                    "metasploit", "poc", "arbitrary code", "code execution",
+                )
+            )
+            if "authbypass" in desc_lower or "auth bypass" in desc_lower:
+                exploit_type = "AuthBypass"
+            elif "privesc" in desc_lower or "privilege escalation" in desc_lower:
+                exploit_type = "PrivEsc"
+            elif "information disclosure" in desc_lower or "memory" in desc_lower or "leak" in desc_lower:
+                exploit_type = "InfoDisc"
+            elif "denial" in desc_lower or " dos" in desc_lower:
+                exploit_type = "DoS"
+            elif exploit_available:
+                exploit_type = "RCE"
+            else:
+                exploit_type = "Other"
+
+            cve_id = row["cve_id"]
+            nvd_ref = (
+                f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+                if cve_id.startswith("CVE-")
+                else "N/A"
+            )
+
+            records.append({
+                "cve_id": cve_id,
+                "cvss_v3": float(row["cvss_score"]),
+                "severity": _cvss_to_severity(float(row["cvss_score"])),
+                "description": row["description"],
+                "affected_versions": row["affected_product"],
+                "exploit_available": exploit_available,
+                "exploit_type": exploit_type,
+                "patch_available": True,
+                "reference": nvd_ref,
+            })
+        return records
+
+
+# ---------------------------------------------------------------------------
 # Analyst agent
 # ---------------------------------------------------------------------------
 
@@ -708,7 +783,9 @@ class AnalystAgent(BaseAgent):
     # ------------------------------------------------------------------
 
     def run(self, state: RTAIState) -> dict[str, Any]:
-        db = CveDatabase()
+        db: CveDatabase | LocalCveDbAdapter = (
+            LocalCveDbAdapter() if Config.USE_LOCAL_OSINT else CveDatabase()
+        )
         ports = self._extract_ports(state)
 
         # --- CVE lookup and scoring per entry point ----------------------

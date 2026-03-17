@@ -1280,6 +1280,29 @@ def main() -> None:
                     )
                     save_rtai_state(safe_slug, state_dict)
                     st.session_state["_loaded_slug"] = safe_slug
+
+                    # ── Telegram notification ─────────────────────────────
+                    report_text = ""
+                    for md in sorted(REPORTS_DIR.glob(f"{safe_slug}*.md")):
+                        try:
+                            report_text = md.read_text(encoding="utf-8")
+                        except Exception:
+                            pass
+                    try:
+                        from tools.telegram_notifier import notify_telegram
+                        sent = notify_telegram(
+                            engagement=swarm_engagement.strip(),
+                            target=swarm_target.strip(),
+                            report_md=report_text,
+                            state=state_dict,
+                        )
+                        if sent:
+                            st.success("📨 Telegram report sent.")
+                        else:
+                            st.info("ℹ️ Telegram not configured — skipped.")
+                    except Exception as _tg_err:
+                        st.warning(f"Telegram send failed: {_tg_err}")
+
                     st.success("Swarm complete! See Swarm Live Feed tab.")
                     st.rerun()
 

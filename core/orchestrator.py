@@ -1,9 +1,13 @@
 """
 core/orchestrator.py
-LangGraph-based orchestrator.
+LangGraph-based orchestrator (legacy entry point).
 
 Pipeline (strictly linear):
-    START ──► recon ──► osint ──► exploit ──► remediation ──► report ──► END
+    START ──► scout ──► analyst ──► hunter ──► strategist ──► fixer ──► report ──► END
+
+For new integrations prefer SwarmController (agents/swarm_controller.py) which
+provides the approval gate, Telegram notifications, and a hot-swappable PIPELINE
+list.  This module is retained for CLI (main.py) compatibility.
 """
 from __future__ import annotations
 
@@ -11,36 +15,40 @@ from langgraph.graph import StateGraph, END
 
 from core.config import Config
 from core.state import RTAIState
-from agents.recon_agent import ReconAgent
-from agents.osint_agent import OsintAgent
-from agents.exploit_agent import ExploitAgent
-from agents.remediation_agent import RemediationAgent
-from agents.report_agent import ReportAgent
+from agents.scout_agent      import ScoutAgent
+from agents.analyst_agent    import AnalystAgent
+from agents.hunter_agent     import HunterAgent
+from agents.strategist_agent import StrategistAgent
+from agents.fixer_agent      import FixerAgent
+from agents.report_agent     import ReportAgent
 
 
 # ---------------------------------------------------------------------------
 # Node wrappers
 # ---------------------------------------------------------------------------
 
-def recon_node(state: RTAIState) -> dict:
-    return ReconAgent().run(state)
+def scout_node(state: RTAIState) -> dict:
+    return ScoutAgent().run(state)
 
 
-def osint_node(state: RTAIState) -> dict:
-    return OsintAgent().run(state)
+def analyst_node(state: RTAIState) -> dict:
+    return AnalystAgent().run(state)
 
 
-def exploit_node(state: RTAIState) -> dict:
-    return ExploitAgent().run(state)
+def hunter_node(state: RTAIState) -> dict:
+    return HunterAgent().run(state)
 
 
-def remediation_node(state: RTAIState) -> dict:
-    return RemediationAgent().run(state)
+def strategist_node(state: RTAIState) -> dict:
+    return StrategistAgent().run(state)
+
+
+def fixer_node(state: RTAIState) -> dict:
+    return FixerAgent().run(state)
 
 
 def report_node(state: RTAIState) -> dict:
     return ReportAgent().run(state)
-
 
 
 # ---------------------------------------------------------------------------
@@ -55,20 +63,22 @@ class Orchestrator:
     def _build_graph(self) -> StateGraph:
         builder = StateGraph(RTAIState)
 
-        builder.add_node("recon",        recon_node)
-        builder.add_node("osint",        osint_node)
-        builder.add_node("exploit",      exploit_node)
-        builder.add_node("remediation",  remediation_node)
-        builder.add_node("report",       report_node)
+        builder.add_node("scout",       scout_node)
+        builder.add_node("analyst",     analyst_node)
+        builder.add_node("hunter",      hunter_node)
+        builder.add_node("strategist",  strategist_node)
+        builder.add_node("fixer",       fixer_node)
+        builder.add_node("report",      report_node)
 
-        builder.set_entry_point("recon")
+        builder.set_entry_point("scout")
 
-        # Strictly linear — every engagement passes through all five stages
-        builder.add_edge("recon",       "osint")
-        builder.add_edge("osint",       "exploit")
-        builder.add_edge("exploit",     "remediation")
-        builder.add_edge("remediation", "report")
-        builder.add_edge("report",      END)
+        # Strictly linear — every engagement passes through all six stages
+        builder.add_edge("scout",      "analyst")
+        builder.add_edge("analyst",    "hunter")      # ← NEW
+        builder.add_edge("hunter",     "strategist")  # ← NEW
+        builder.add_edge("strategist", "fixer")
+        builder.add_edge("fixer",      "report")
+        builder.add_edge("report",     END)
 
         return builder.compile()
 

@@ -41,9 +41,10 @@ graph TD
 
     subgraph SWARM["Advanced Swarm Pipeline"]
         direction LR
-        SC[ScoutAgent\nStealthy Recon] --> AN[AnalystAgent\nDynamic Risk Scoring]
-        AN --> ST[StrategistAgent\n3-Step Reasoning Chain]
-        ST --> FX[FixerAgent\nScript Generator + Safety Filter]
+        SC[ScoutAgent\nRecon] --> AN[AnalystAgent\nRisk Scoring]
+        AN --> HU[HunterAgent\nC2 & Shellcode Hunt]
+        HU --> ST[StrategistAgent\nAttack Planning]
+        ST --> FX[FixerAgent\nRemediation Gen]
     end
 
     ORC -- "RTAIState\nPydantic Model" --> SWARM

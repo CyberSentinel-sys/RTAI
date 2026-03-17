@@ -12,7 +12,6 @@ import json
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from tavily import TavilyClient
 
 from agents.base_agent import BaseAgent
 from core.config import Config
@@ -30,8 +29,6 @@ class OsintAgent(BaseAgent):
     _MAX_RESULTS = 5
 
     def run(self, state: RTAIState) -> dict[str, Any]:
-        client = TavilyClient(api_key=Config.TAVILY_API_KEY)
-
         services = self._extract_services(state)
         if not services:
             return {
@@ -46,18 +43,23 @@ class OsintAgent(BaseAgent):
             }
 
         osint_results: list[dict[str, Any]] = []
-        for svc in services:
-            label = svc["label"]
-            raw_hits = self._search(
-                client,
-                query=f"{label} known vulnerabilities exploits",
-            )
-            osint_results.append({
-                "service": label,
-                "port": svc["port"],
-                "protocol": svc["protocol"],
-                "raw_hits": raw_hits,
-            })
+        if Config.USE_LOCAL_OSINT:
+            osint_results = self._search_local(services)
+        else:
+            from tavily import TavilyClient
+            client = TavilyClient(api_key=Config.TAVILY_API_KEY)
+            for svc in services:
+                label = svc["label"]
+                raw_hits = self._search_tavily(
+                    client,
+                    query=f"{label} known vulnerabilities exploits",
+                )
+                osint_results.append({
+                    "service": label,
+                    "port": svc["port"],
+                    "protocol": svc["protocol"],
+                    "raw_hits": raw_hits,
+                })
 
         top_3_risks, synthesis = self._synthesise(state.target, osint_results)
 
@@ -124,7 +126,23 @@ class OsintAgent(BaseAgent):
 
         return services
 
-    def _search(self, client: TavilyClient, query: str) -> list[dict[str, str]]:
+    def _search_local(self, services: list[dict[str, str]]) -> list[dict[str, Any]]:
+        """Use the local searchsploit tool for offline OSINT."""
+        from tools.tool_registry import ToolRegistry
+        registry = ToolRegistry.default()
+        results = []
+        for svc in services:
+            label = svc["label"]
+            tool_out = registry.run("local_exploit_search", query=label)
+            results.append({
+                "service": label,
+                "port": svc["port"],
+                "protocol": svc["protocol"],
+                "raw_hits": [{"title": "searchsploit", "snippet": tool_out.get("result", ""), "exploits": tool_out.get("exploits", [])}],
+            })
+        return results
+
+    def _search_tavily(self, client: Any, query: str) -> list[dict[str, str]]:
         """Run a single Tavily search and return cleaned results."""
         try:
             response = client.search(

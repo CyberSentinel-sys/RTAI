@@ -18,6 +18,23 @@ from core.config import Config
 from core.state import RTAIState
 
 
+def _build_llm():
+    """Return a ChatOllama or ChatOpenAI instance based on Config."""
+    if Config.USE_LOCAL_LLM:
+        from langchain_community.chat_models import ChatOllama
+        return ChatOllama(
+            model=Config.LOCAL_LLM_MODEL,
+            base_url=Config.OLLAMA_BASE_URL,
+            temperature=Config.LLM_TEMPERATURE,
+            format="json",
+        )
+    return ChatOpenAI(
+        model=Config.LLM_MODEL,
+        temperature=Config.LLM_TEMPERATURE,
+        api_key=Config.OPENAI_API_KEY,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Module-level utility
 # ---------------------------------------------------------------------------
@@ -59,11 +76,7 @@ class BaseAgent(ABC):
     goal: str = ""   # One-line goal injected into every system prompt
 
     def __init__(self) -> None:
-        self.llm = ChatOpenAI(
-            model=Config.LLM_MODEL,
-            temperature=Config.LLM_TEMPERATURE,
-            api_key=Config.OPENAI_API_KEY,
-        )
+        self.llm = _build_llm()
 
     # ------------------------------------------------------------------
     # Standard execution interface
