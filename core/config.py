@@ -28,6 +28,19 @@ class Config:
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
     USE_LOCAL_OSINT: bool = _bool("USE_LOCAL_OSINT")
 
+    # Enterprise feature flags (overridden by LicenseManager at startup)
+    HUNTER_AGENT_ENABLED: bool = True   # set False in Community mode
+
+    # Remediation format ("bash" | "ansible")
+    REMEDIATION_FORMAT: str = os.getenv("REMEDIATION_FORMAT", "bash").strip().lower()
+
+    # Jira Enterprise Integration
+    ENABLE_JIRA_INTEGRATION: bool = _bool("ENABLE_JIRA_INTEGRATION")
+    JIRA_SERVER_URL: str = os.getenv("JIRA_SERVER_URL", "").rstrip("/")
+    JIRA_USER_EMAIL: str = os.getenv("JIRA_USER_EMAIL", "")
+    JIRA_API_TOKEN: str = os.getenv("JIRA_API_TOKEN", "")
+    JIRA_PROJECT_KEY: str = os.getenv("JIRA_PROJECT_KEY", "ITSEC")
+
     # Telegram
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")

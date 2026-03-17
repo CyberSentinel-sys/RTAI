@@ -325,6 +325,75 @@ class FixerAgent(BaseAgent):
             for ep in batch
         ]
 
+        ansible_mode = Config.REMEDIATION_FORMAT == "ansible"
+        if ansible_mode:
+            remediation_instructions = (
+                "For EACH entry point return a JSON array element "
+                "(one element per entry point, same order). "
+                "REMEDIATION_FORMAT=ansible: the ansible_task field is the PRIMARY "
+                "deliverable and must be a complete, production-ready Ansible task "
+                "block with proper YAML indentation. "
+                "Use this EXACT schema — no markdown fences, no extra keys:\n"
+                "[\n"
+                "  {\n"
+                '    "rank": <integer from input>,\n'
+                '    "title": "<imperative fix title, ≤ 60 chars>",\n'
+                '    "severity": "<Critical|High|Medium|Low>",\n'
+                '    "ip": "<ip from input>",\n'
+                '    "port": <port number>,\n'
+                '    "service": "<product version from input>",\n'
+                '    "cve_id": "<primary CVE or N/A>",\n'
+                '    "bash_snippet": "<minimal bash fallback; detect apt vs yum/dnf>",\n'
+                '    "iptables_rules": "<iptables command(s) or empty string>",\n'
+                '    "ansible_task": "<REQUIRED: full Ansible task YAML starting with '
+                "- name:; use package/service/lineinfile/shell modules as needed; "
+                'include become: true at task level>",\n'
+                '    "verification_cmd": "<single shell command to confirm fix>",\n'
+                '    "notes": "<1 sentence: caveats, restart warnings, rollback tip>"\n'
+                "  }\n"
+                "]\n\n"
+                "Ansible task rules:\n"
+                "- Each task MUST start with '- name:' and include correct 2-space indentation.\n"
+                "- Prefer 'ansible.builtin.package' for package installs (auto-detects apt/yum/dnf).\n"
+                "- Use 'ansible.builtin.service' with state: restarted where needed.\n"
+                "- Use 'ansible.builtin.iptables' for firewall rules instead of raw shell.\n"
+                "- Do not invent CVEs; use cve_id from the input list.\n"
+                "- Stay within authorised scope."
+            )
+        else:
+            remediation_instructions = (
+                "For EACH entry point return a JSON array element "
+                "(one element per entry point, same order). "
+                "Use this EXACT schema — no markdown fences, no extra keys:\n"
+                "[\n"
+                "  {\n"
+                '    "rank": <integer from input>,\n'
+                '    "title": "<imperative fix title, ≤ 60 chars>",\n'
+                '    "severity": "<Critical|High|Medium|Low>",\n'
+                '    "ip": "<ip from input>",\n'
+                '    "port": <port number>,\n'
+                '    "service": "<product version from input>",\n'
+                '    "cve_id": "<primary CVE or N/A>",\n'
+                '    "bash_snippet": "<multi-line bash; detect apt vs yum/dnf; '
+                'restart service; NO shebang line>",\n'
+                '    "iptables_rules": "<iptables command(s) to isolate the port, '
+                'or empty string if not applicable>",\n'
+                '    "ansible_task": "<valid YAML: one or more Ansible task blocks '
+                'starting with - name:>",\n'
+                '    "verification_cmd": "<single shell command to confirm fix>",\n'
+                '    "notes": "<1 sentence: caveats, restart warnings, rollback tip>"\n'
+                "  }\n"
+                "]\n\n"
+                "Rules:\n"
+                "- bash_snippet must use 'if command -v apt-get' / 'elif command -v "
+                "yum' / 'elif command -v dnf' to auto-detect the package manager.\n"
+                "- iptables_rules should include both the rule and "
+                "'iptables-save > /etc/iptables/rules.v4 2>/dev/null || true'.\n"
+                "- ansible_task must be valid YAML with correct indentation.\n"
+                "- Do not invent CVEs; use cve_id from the input list.\n"
+                "- Stay within authorised scope."
+            )
+
         messages = [
             SystemMessage(content=self._system_prompt()),
             HumanMessage(
@@ -334,36 +403,7 @@ class FixerAgent(BaseAgent):
                        if strategy else "")
                     + "Entry points requiring remediation:\n"
                     f"```json\n{json.dumps(condensed, indent=2)}\n```\n\n"
-                    "For EACH entry point return a JSON array element "
-                    "(one element per entry point, same order). "
-                    "Use this EXACT schema — no markdown fences, no extra keys:\n"
-                    "[\n"
-                    "  {\n"
-                    '    "rank": <integer from input>,\n'
-                    '    "title": "<imperative fix title, ≤ 60 chars>",\n'
-                    '    "severity": "<Critical|High|Medium|Low>",\n'
-                    '    "ip": "<ip from input>",\n'
-                    '    "port": <port number>,\n'
-                    '    "service": "<product version from input>",\n'
-                    '    "cve_id": "<primary CVE or N/A>",\n'
-                    '    "bash_snippet": "<multi-line bash; detect apt vs yum/dnf; '
-                    'restart service; NO shebang line>",\n'
-                    '    "iptables_rules": "<iptables command(s) to isolate the port, '
-                    'or empty string if not applicable>",\n'
-                    '    "ansible_task": "<valid YAML: one or more Ansible task blocks '
-                    'starting with - name:>",\n'
-                    '    "verification_cmd": "<single shell command to confirm fix>",\n'
-                    '    "notes": "<1 sentence: caveats, restart warnings, rollback tip>"\n'
-                    "  }\n"
-                    "]\n\n"
-                    "Rules:\n"
-                    "- bash_snippet must use 'if command -v apt-get' / 'elif command -v "
-                    "yum' / 'elif command -v dnf' to auto-detect the package manager.\n"
-                    "- iptables_rules should include both the rule and "
-                    "'iptables-save > /etc/iptables/rules.v4 2>/dev/null || true'.\n"
-                    "- ansible_task must be valid YAML with correct indentation.\n"
-                    "- Do not invent CVEs; use cve_id from the input list.\n"
-                    "- Stay within authorised scope."
+                    + remediation_instructions
                 )
             ),
         ]

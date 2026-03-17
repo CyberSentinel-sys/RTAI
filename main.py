@@ -3,7 +3,9 @@ main.py
 CLI entry point for the RTAI autonomous red-team framework.
 
 Runs the full swarm pipeline:
-    Scout → Analyst → Strategist → Fixer → Report
+    Scout → Analyst → [Hunter*] → Strategist → Fixer → Report
+
+  * HunterAgent requires a valid Enterprise license.
 
 The SwarmController activates the Approval Gate after the Fixer Agent
 completes and sends a Telegram notification (if configured) before any
@@ -15,6 +17,7 @@ Usage:
 """
 import argparse
 
+from core.license_manager import LicenseManager
 from agents.swarm_controller import SwarmController
 
 
@@ -36,6 +39,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Run the RTAI pipeline and print the final engagement report to stdout."""
+    # ── License check (must run before SwarmController builds the pipeline) ──
+    LicenseManager.enforce()
+
     args = parse_args()
     controller = SwarmController()
     final_state = controller.run(

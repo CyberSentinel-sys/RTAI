@@ -21,7 +21,7 @@ from core.state import RTAIState
 def _build_llm():
     """Return a ChatOllama or ChatOpenAI instance based on Config."""
     if Config.USE_LOCAL_LLM:
-        from langchain_community.chat_models import ChatOllama
+        from langchain_ollama import ChatOllama
         return ChatOllama(
             model=Config.LOCAL_LLM_MODEL,
             base_url=Config.OLLAMA_BASE_URL,

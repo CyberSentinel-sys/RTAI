@@ -417,5 +417,16 @@ from agents.hunter_agent     import HunterAgent     as _Hunter      # noqa: E402
 from agents.strategist_agent import StrategistAgent as _Strategist  # noqa: E402
 from agents.fixer_agent      import FixerAgent      as _Fixer       # noqa: E402
 from agents.report_agent     import ReportAgent     as _Report      # noqa: E402
+from core.config             import Config                           # noqa: E402
 
-SwarmController.PIPELINE = [_Scout, _Analyst, _Hunter, _Strategist, _Fixer, _Report]
+# HunterAgent is an Enterprise-only feature.
+# LicenseManager.enforce() sets Config.HUNTER_AGENT_ENABLED=False in Community mode
+# before SwarmController is instantiated, so this list is evaluated at import time
+# with the correct value already in place.
+_full_pipeline = [_Scout, _Analyst, _Hunter, _Strategist, _Fixer, _Report]
+_community_pipeline = [_Scout, _Analyst, _Strategist, _Fixer, _Report]
+
+SwarmController.PIPELINE = (
+    _full_pipeline if getattr(Config, "HUNTER_AGENT_ENABLED", True)
+    else _community_pipeline
+)

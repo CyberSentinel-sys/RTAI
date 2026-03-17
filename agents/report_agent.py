@@ -59,6 +59,11 @@ class ReportAgent(BaseAgent):
             narrative["conclusion"],
         ])
 
+        # ── Jira integration ───────────────────────────────────────────────
+        jira_section = self._create_jira_ticket(state)
+        if jira_section:
+            report_md = report_md + "\n\n" + jira_section
+
         # ── Persist to disk ────────────────────────────────────────────────
         safe_name = re.sub(r"[^\w\-]", "_", state.engagement_name or "engagement")
         report_path = Config.REPORT_DIR / f"{safe_name}_{date_str}_report.md"
@@ -86,14 +91,21 @@ class ReportAgent(BaseAgent):
         )
 
     def _scope_section(self, state: RTAIState, date_str: str) -> str:
+        from core.config import Config
+        osint_tool = "searchsploit + local SQLite CVE DB" if Config.USE_LOCAL_OSINT else "Tavily Search API"
+        llm_backend = f"Ollama ({Config.LOCAL_LLM_MODEL})" if Config.USE_LOCAL_LLM else "OpenAI LLM"
+        osint_stage = (
+            "OSINT intelligence gathering (searchsploit)" if Config.USE_LOCAL_OSINT
+            else "OSINT intelligence gathering (Tavily)"
+        )
         return (
             "## Scope & Methodology\n\n"
             f"- **Target scope:** `{state.target}`\n"
             f"- **Assessment date:** {date_str}\n"
-            "- **Methodology:** Automated pipeline — Reconnaissance (Nmap) → "
-            "OSINT intelligence gathering (Tavily) → Exploitation analysis → "
+            f"- **Methodology:** Automated pipeline — Reconnaissance (Nmap) → "
+            f"{osint_stage} → Exploitation analysis → "
             "Remediation planning → Report\n"
-            "- **Tools:** python-nmap, Tavily Search API, OpenAI LLM\n"
+            f"- **Tools:** python-nmap, {osint_tool}, {llm_backend}\n"
         )
 
     def _build_recon_section(self, state: RTAIState) -> str:
@@ -309,6 +321,95 @@ class ReportAgent(BaseAgent):
                 "executive_summary": f"## Executive Summary\n\n{response.content}",
                 "conclusion":        "## Conclusion\n\n_Engagement complete._",
             }
+
+    # =========================================================================
+    # Jira integration
+    # =========================================================================
+
+    @staticmethod
+    def _create_jira_ticket(state: RTAIState) -> str:
+        """
+        If ``Config.ENABLE_JIRA_INTEGRATION`` is True and FixerAgent produced
+        at least one fix, create a Jira ticket for the highest-risk finding.
+
+        Returns a Markdown section string to append to the report, or an
+        empty string if Jira is disabled or ticket creation fails.
+        """
+        if not Config.ENABLE_JIRA_INTEGRATION:
+            return ""
+
+        if not all([Config.JIRA_SERVER_URL, Config.JIRA_USER_EMAIL, Config.JIRA_API_TOKEN]):
+            return (
+                "## Jira Integration\n\n"
+                "_Jira integration is enabled but JIRA_SERVER_URL, JIRA_USER_EMAIL, "
+                "or JIRA_API_TOKEN is not configured._"
+            )
+
+        # Find highest-risk fix from FixerAgent output
+        fixer_out: dict[str, Any] = state.tool_outputs.get("fixer", {})
+        fixes: list[dict[str, Any]] = fixer_out.get("fixes", [])
+        if not fixes:
+            return (
+                "## Jira Integration\n\n"
+                "_No fixes were generated — no Jira ticket created._"
+            )
+
+        # Pick the fix with the highest dynamic_risk_score (already sorted Critical-first)
+        top_fix = max(fixes, key=lambda f: float(f.get("dynamic_risk_score", 0.0)))
+
+        cve_id = top_fix.get("cve_id", "N/A")
+        risk_score = float(top_fix.get("dynamic_risk_score", 0.0))
+        service = top_fix.get("service", "")
+        target = top_fix.get("ip", state.target)
+
+        # Choose the primary remediation code based on REMEDIATION_FORMAT
+        if Config.REMEDIATION_FORMAT == "ansible":
+            code = top_fix.get("ansible_task", top_fix.get("bash_snippet", ""))
+            fmt = "ansible"
+        else:
+            code = top_fix.get("bash_snippet", top_fix.get("ansible_task", ""))
+            fmt = "bash"
+
+        # Build a human-readable description from CVE records embedded in the fix
+        description = (
+            f"{top_fix.get('title', 'Security finding')}. "
+            f"Severity: {top_fix.get('severity', 'Unknown')}. "
+            f"Port: {top_fix.get('port', 'N/A')}. "
+            f"Notes: {top_fix.get('notes', '')}"
+        )
+
+        try:
+            from integrations.jira_client import JiraEnterpriseClient
+            client = JiraEnterpriseClient(
+                server_url=Config.JIRA_SERVER_URL,
+                user_email=Config.JIRA_USER_EMAIL,
+                api_token=Config.JIRA_API_TOKEN,
+                project_key=Config.JIRA_PROJECT_KEY,
+            )
+            ticket_url = client.create_remediation_ticket(
+                cve_id=cve_id,
+                risk_score=risk_score,
+                description=description,
+                remediation_code=code,
+                fmt=fmt,
+                target=target,
+                service=service,
+            )
+            return (
+                "## Jira Integration\n\n"
+                f"A remediation ticket was automatically created for the highest-risk "
+                f"finding (`{cve_id}`, score {risk_score}):\n\n"
+                f"**Ticket:** [{ticket_url}]({ticket_url})\n\n"
+                f"*Project: `{Config.JIRA_PROJECT_KEY}` | "
+                f"Format: `{fmt}` | "
+                f"Service: {service or 'N/A'}*"
+            )
+        except Exception as exc:  # noqa: BLE001
+            return (
+                "## Jira Integration\n\n"
+                f"_Ticket creation failed: {exc}_\n\n"
+                "Check `JIRA_SERVER_URL`, `JIRA_USER_EMAIL`, and `JIRA_API_TOKEN` in `.env`."
+            )
 
     # =========================================================================
     # Utilities
