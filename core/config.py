@@ -30,6 +30,7 @@ class Config:
 
     # Enterprise feature flags (overridden by LicenseManager at startup)
     HUNTER_AGENT_ENABLED: bool = True   # set False in Community mode
+    LICENSE_TIER: str = "Community"     # set to "Enterprise" by LicenseManager.enforce()
 
     # Remediation format ("bash" | "ansible")
     REMEDIATION_FORMAT: str = os.getenv("REMEDIATION_FORMAT", "bash").strip().lower()

@@ -330,11 +330,12 @@ class LicenseManager:
     @staticmethod
     def _apply_enterprise() -> None:
         """No restrictions — Enterprise has access to all features."""
-        pass  # Config values remain as set in .env
+        Config.LICENSE_TIER = "Enterprise"
 
     @staticmethod
     def _apply_community() -> None:
         """Restrict Config to Community-safe settings."""
+        Config.LICENSE_TIER             = "Community"
         Config.REMEDIATION_FORMAT       = "bash"
         Config.ENABLE_JIRA_INTEGRATION  = False
         # HunterAgent exclusion is handled in swarm_controller.py by reading

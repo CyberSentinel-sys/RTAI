@@ -57,6 +57,7 @@ class ReportAgent(BaseAgent):
             exploit_section,
             remediation_section,
             narrative["conclusion"],
+            self._footer(date_str),
         ])
 
         # ── Jira integration ───────────────────────────────────────────────
@@ -253,6 +254,16 @@ class ReportAgent(BaseAgent):
 
         return "\n".join(lines)
 
+    def _footer(self, date_str: str) -> str:
+        tier = getattr(Config, "LICENSE_TIER", "Community")
+        return (
+            "---\n\n"
+            f"*RTAI Enterprise v1.0 — {tier} Edition &nbsp;|&nbsp; "
+            f"Generated: {date_str} &nbsp;|&nbsp; "
+            "Classification: CONFIDENTIAL &nbsp;|&nbsp; "
+            "For authorised use only.*"
+        )
+
     # =========================================================================
     # LLM narrative generator
     # =========================================================================
@@ -281,10 +292,29 @@ class ReportAgent(BaseAgent):
         attack_vectors = exploit_finding.get("attack_vectors", "None")
         remediations   = remediation_finding.get("remediations", [])
 
+        has_findings = (
+            bool(top_3_risks)
+            or (attack_vectors not in ("None", "", "none"))
+            or bool(remediations)
+        )
+        if not has_findings:
+            no_findings_instruction = (
+                "CRITICAL INSTRUCTION: The Scout and Analyst agents found NO vulnerabilities "
+                "on this target. You MUST NOT generate, invent, or hallucinate any security "
+                "findings, CVEs, risk ratings, or attack vectors. "
+                "The Executive Summary MUST clearly state: "
+                "'Environment Secure — No Critical Vulnerabilities Detected.' "
+                "Do not reference any specific CVEs, ports, or services that were not "
+                "explicitly provided in the data above.\n\n"
+            )
+        else:
+            no_findings_instruction = ""
+
         messages = [
             SystemMessage(content=self._system_prompt()),
             HumanMessage(
                 content=(
+                    f"{no_findings_instruction}"
                     f"Engagement: {state.engagement_name}\n"
                     f"Target: {state.target}\n\n"
                     f"Top 3 OSINT risks:\n{self._fmt(top_3_risks)}\n\n"
