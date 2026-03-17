@@ -19,10 +19,16 @@ import json
 import os
 import re
 import subprocess
+import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# Ensure the project root is on sys.path when the dashboard is launched from ui/
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -30,10 +36,10 @@ from streamlit_agraph import Config as AGraphConfig
 from streamlit_agraph import Edge, Node, agraph
 
 # ---------------------------------------------------------------------------
-# Paths
+# Paths  (ROOT is the project root, not the ui/ directory)
 # ---------------------------------------------------------------------------
 
-ROOT            = Path(__file__).parent
+ROOT            = _PROJECT_ROOT
 REPORTS_DIR     = ROOT / "reports"
 REMEDIATION_DIR = ROOT / "remediation"
 _STATE_SUFFIX   = "_state.json"

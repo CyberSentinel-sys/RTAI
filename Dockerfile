@@ -17,5 +17,5 @@ COPY . .
 # Expose Streamlit default port
 EXPOSE 8501
 
-# Default command launches the CISO Dashboard
-CMD ["streamlit", "run", "dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Default command launches the CISO Dashboard (moved to ui/)
+CMD ["streamlit", "run", "ui/dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]

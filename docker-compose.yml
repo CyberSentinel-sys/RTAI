@@ -1,6 +1,8 @@
 version: '3.8'
 
 services:
+
+  # ── CISO Dashboard ──────────────────────────────────────────────────────────
   rtai-dashboard:
     build: .
     container_name: rtai-dashboard
@@ -9,5 +11,36 @@ services:
     env_file:
       - .env
     volumes:
-      - ./samples:/app/samples
+      - ./reports:/app/reports
+      - ./remediation:/app/remediation
       - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      - rtai-relay
+    networks:
+      - rtai-net
+
+  # ── DMZ CVE Relay Server ────────────────────────────────────────────────────
+  # Runs the FastAPI relay (relay_server/app.py) that air-gapped nodes pull
+  # CVE delta updates from.  Bind to a restricted interface in production.
+  rtai-relay:
+    image: python:3.10-slim
+    container_name: rtai-relay
+    working_dir: /app
+    command: >
+      sh -c "pip install --no-cache-dir fastapi uvicorn[standard] requests &&
+             uvicorn relay_server.app:app --host 0.0.0.0 --port 8765"
+    ports:
+      - "8765:8765"
+    env_file:
+      - .env
+    environment:
+      - RELAY_CVE_FILE=/app/relay_server/data/cve_feed.json
+    volumes:
+      - .:/app
+    networks:
+      - rtai-net
+
+networks:
+  rtai-net:
+    driver: bridge

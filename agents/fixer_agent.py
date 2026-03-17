@@ -1080,3 +1080,147 @@ class FixerAgent(BaseAgent):
             "current_step": "fixer_complete",
             "finished": True,
         }
+
+
+# =============================================================================
+# Backward-compatibility shim — was agents/remediation_agent.py
+# RemediationAgent has been consolidated into this module.
+# =============================================================================
+
+_REMEDIATION_RISK_RANK: dict[str, int] = {
+    "critical": 0, "high": 1, "medium": 2, "low": 3
+}
+
+
+class RemediationAgent(BaseAgent):
+    """
+    Backward-compatibility alias for the legacy RemediationAgent.
+
+    Produces per-vector structured remediation entries (steps, code_snippet,
+    verification) compatible with the legacy LangGraph orchestrator pipeline
+    (core/orchestrator.py).  For new engagements prefer ``FixerAgent``.
+    """
+
+    role = "Remediation Engineer"
+    goal = (
+        "For every confirmed attack vector, produce step-by-step remediation "
+        "instructions including shell commands, configuration changes, and "
+        "code patches so a system administrator can immediately act on the findings."
+    )
+
+    def run(self, state: RTAIState) -> dict[str, Any]:
+        """
+        Generate structured remediations for every exploit vector in state.
+
+        Args:
+            state: Shared engagement state; reads ``findings[phase=exploit_analysis]``
+                   and ``findings[phase=osint]``.
+
+        Returns:
+            Partial state dict with ``remediations`` list, a ``findings`` entry
+            with ``phase="remediation"``, and ``current_step="remediation_complete"``.
+        """
+        exploit_finding = next(
+            (f for f in state.findings if f.get("phase") == "exploit_analysis"), {}
+        )
+        osint_finding = next(
+            (f for f in state.findings if f.get("phase") == "osint"), {}
+        )
+
+        attack_vectors = exploit_finding.get("attack_vectors", "")
+        top_3_risks    = osint_finding.get("top_3_risks", [])
+
+        if not attack_vectors:
+            return {
+                "remediations": [],
+                "findings": [{
+                    "phase": "remediation",
+                    "target": state.target,
+                    "remediations": [],
+                    "summary": "No attack vectors to remediate.",
+                }],
+                "current_step": "remediation_complete",
+            }
+
+        remediations = self._generate_remediations(
+            state.target, attack_vectors, top_3_risks
+        )
+        remediations.sort(
+            key=lambda r: _REMEDIATION_RISK_RANK.get(
+                r.get("risk_level", "").lower(), 99
+            )
+        )
+
+        return {
+            "remediations": remediations,
+            "findings": [{
+                "phase": "remediation",
+                "target": state.target,
+                "remediations": remediations,
+            }],
+            "current_step": "remediation_complete",
+        }
+
+    def _generate_remediations(
+        self,
+        target: str,
+        attack_vectors: str,
+        top_3_risks: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """
+        Call the LLM to produce a structured JSON remediation array.
+
+        Args:
+            target: Target IP/hostname.
+            attack_vectors: Free-text list of attack vectors from ExploitAgent.
+            top_3_risks: Structured OSINT risk list from OsintAgent.
+
+        Returns:
+            List of remediation dicts; falls back to a single unstructured entry
+            if the LLM response cannot be parsed as JSON.
+        """
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        messages = [
+            SystemMessage(content=self._system_prompt()),
+            HumanMessage(
+                content=(
+                    f"Target: {target}\n\n"
+                    f"Attack vectors identified by ExploitAgent:\n{attack_vectors}\n\n"
+                    f"OSINT top-3 risks (CVEs / PoCs / default creds):\n"
+                    f"{json.dumps(top_3_risks, indent=2)}\n\n"
+                    "For EACH numbered attack vector above, produce a remediation entry.\n"
+                    "Return ONLY a valid JSON array (no markdown fences) where every "
+                    "element matches this schema exactly:\n"
+                    "{\n"
+                    '  "id": <integer>,\n'
+                    '  "title": "<short imperative title>",\n'
+                    '  "risk_level": "<Critical | High | Medium | Low>",\n'
+                    '  "service": "<affected service and version>",\n'
+                    '  "cve": "<CVE-XXXX-XXXX or N/A>",\n'
+                    '  "steps": ["<step 1>", ...],\n'
+                    '  "code_snippet": "<shell commands or null>",\n'
+                    '  "verification": "<single runnable check>"\n'
+                    "}\n\n"
+                    "Rules:\n"
+                    "- steps must be specific shell commands, not vague advice\n"
+                    "- code_snippet should be copy-paste ready bash/yaml/config\n"
+                    "- verification must be a concrete, runnable check\n"
+                    "- risk_level must match the level assigned by ExploitAgent"
+                )
+            ),
+        ]
+        response = self.llm.invoke(messages)
+        try:
+            return json.loads(response.content)
+        except (json.JSONDecodeError, ValueError):
+            return [{
+                "id": 0,
+                "title": "Remediation guidance (unstructured)",
+                "risk_level": "Unknown",
+                "service": "N/A",
+                "cve": "N/A",
+                "steps": [response.content],
+                "code_snippet": None,
+                "verification": "N/A",
+            }]

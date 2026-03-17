@@ -761,3 +761,71 @@ class ScoutAgent(BaseAgent):
             "findings": [finding],
             "current_step": "scout_complete",
         }
+
+
+# =============================================================================
+# Backward-compatibility shim — was agents/recon_agent.py
+# ReconAgent has been consolidated into this module.  Any existing imports of
+# ``from agents.recon_agent import ReconAgent`` continue to work via
+# ``from agents.scout_agent import ReconAgent``.
+# =============================================================================
+
+import json as _json  # noqa: E402  (already imported above, alias avoids re-import)
+
+
+class ReconAgent(BaseAgent):
+    """
+    Backward-compatibility alias for the legacy ReconAgent.
+
+    The original ReconAgent used a simple nmap-via-ToolRegistry approach.
+    Its logic is preserved here verbatim so that any pipeline still referencing
+    ``ReconAgent`` continues to work without modification.
+
+    For new engagements prefer ``ScoutAgent``, which performs stealthy two-phase
+    host discovery and produces a richer structured result.
+    """
+
+    role = "Reconnaissance Specialist"
+    goal = "Enumerate hosts, open ports, running services, and OS information."
+
+    def run(self, state: RTAIState) -> dict[str, Any]:
+        """
+        Run a direct nmap scan via ToolRegistry and return LLM-annotated findings.
+
+        Args:
+            state: Current shared engagement state containing the target.
+
+        Returns:
+            Partial state dict with ``tool_outputs["nmap"]``, a ``findings``
+            entry with ``phase="recon"``, and ``current_step="recon_complete"``.
+        """
+        from tools.tool_registry import ToolRegistry
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        registry = ToolRegistry.default()
+        nmap_result = registry.run("nmap", target=state.target)
+
+        messages = [
+            SystemMessage(content=self._system_prompt()),
+            HumanMessage(
+                content=(
+                    f"Target: {state.target}\n\n"
+                    f"Nmap scan results (JSON):\n{nmap_result}\n\n"
+                    "Summarise the attack surface in bullet points. "
+                    "Flag high-value services and potential entry points."
+                )
+            ),
+        ]
+        response = self.llm.invoke(messages)
+
+        finding = {
+            "phase": "recon",
+            "target": state.target,
+            "nmap_raw": nmap_result,
+            "llm_analysis": response.content,
+        }
+        return {
+            "tool_outputs": {"nmap": nmap_result},
+            "findings": [finding],
+            "current_step": "recon_complete",
+        }
